@@ -1,0 +1,56 @@
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import String, Float, DateTime, Integer, Text, ForeignKey, Boolean
+from datetime import datetime, timezone
+from typing import Optional
+
+class Base(DeclarativeBase):
+    pass
+
+class Call(Base):
+    __tablename__ = "calls"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    file_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    duration: Mapped[float] = mapped_column(Float)
+    transcription: Mapped[str] = mapped_column(Text)
+    speaker_count: Mapped[int] = mapped_column(Integer)
+    sentiment: Mapped[str] = mapped_column(String(20))
+    intent: Mapped[str] = mapped_column(String(50))
+    agent_behavior: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc)
+    )
+
+class Report(Base):
+    __tablename__ = "reports"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    call_id: Mapped[int] = mapped_column(ForeignKey("calls.id"), unique=True)
+    overall_score: Mapped[float] = mapped_column(Float)
+    empathy_score: Mapped[float] = mapped_column(Float)
+    resolution_score: Mapped[float] = mapped_column(Float)
+    compliance_score: Mapped[float] = mapped_column(Float)
+    communication_score: Mapped[float] = mapped_column(Float)
+    professionalism_score: Mapped[float] = mapped_column(Float)
+    summary: Mapped[str] = mapped_column(Text)
+    compliance_flag: Mapped[bool] = mapped_column(Boolean)
+    pdf_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc)
+    )
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    call_id: Mapped[Optional[int]] = mapped_column(ForeignKey("calls.id", ondelete="SET NULL"), nullable=True)
+    event_type: Mapped[str] = mapped_column(String(20))
+    message: Mapped[str] = mapped_column(Text)
+    severity: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc)
+    )
