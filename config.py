@@ -9,6 +9,7 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 LANGSMITH_API_KEY = os.getenv("LANGSMITH_API_KEY")
 LANGSMITH_PROJECT = os.getenv("LANGSMITH_PROJECT")
+HF_TOKEN = os.getenv("HF_TOKEN")
 
 LLM_MODEL = "gpt-4o"
 AUDIO_MODEL = "whisper-large-v3"
