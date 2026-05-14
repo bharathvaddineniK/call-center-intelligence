@@ -7,6 +7,7 @@ import logging
 import config
 from faster_whisper import WhisperModel
 from groq import Groq
+from langsmith import traceable
 
 from src.audio.cache import compute_hash, get_cached_transcript
 
@@ -23,7 +24,7 @@ class TranscriptionResult:
     source: str
     duration: float
 
-
+@traceable
 def get_transcription(file_path: str) -> TranscriptionResult:
     """Return a cached transcript, or transcribe with Groq and fall back to Whisper."""
     file_hash = compute_hash(file_path)
