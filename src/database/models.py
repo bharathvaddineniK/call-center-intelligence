@@ -1,5 +1,5 @@
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
-from sqlalchemy import String, Float, DateTime, Integer, Text, ForeignKey, Boolean
+from sqlalchemy import String, Float, DateTime, Integer, Text, ForeignKey, Boolean, JSON
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -18,6 +18,8 @@ class Call(Base):
     sentiment: Mapped[str] = mapped_column(String(20))
     intent: Mapped[str] = mapped_column(String(50))
     agent_behavior: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    segments: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=lambda: datetime.now(timezone.utc)

@@ -53,6 +53,7 @@ markdown-it-py==4.2.0
 MarkupSafe==3.0.3
 mdurl==0.1.2
 murmurhash==1.0.15
+mutagen==1.47.0
 numpy==2.4.4
 onnxruntime==1.26.0
 openai==2.36.0
