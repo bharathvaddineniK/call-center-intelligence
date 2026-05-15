@@ -14,11 +14,11 @@ RETRY_MIN_WAIT_SECONDS = 2
 RETRY_MAX_WAIT_SECONDS = 10
 
 SCORE_WEIGHTS = (
-    ("empathy_score", 0.25),
+    ("empathy_score", 0.20),
     ("resolution_score", 0.30),
     ("compliance_score", 0.20),
     ("communication_score", 0.15),
-    ("professionalism_score", 0.10),
+    ("professionalism_score", 0.15),
 )
 
 LLM = get_llm(temperature=0)
@@ -44,6 +44,7 @@ SCORING SCALE: All scores must be between 0 and 100, where:
 Hard rules:
 1. Use only information present in the transcript.
 2. Do not infer or assume missing details.
+3. When writing reasoning, reference specific transcript timestamps where possible (e.g., "At 02:15, the agent failed to verify identity").
 """
 
 HUMAN_PROMPT = "Analyse the Transcript:\n\n{transcript}\n\nCall Summary:\n\n{summary}"

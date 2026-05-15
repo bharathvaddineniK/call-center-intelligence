@@ -116,7 +116,8 @@ def _transcribe_with_groq_model(
         text=clean_transcript(response.text),
         segments=response.segments,
         confidence=_calculate_confidence(
-            segment["avg_logprob"] for segment in response.segments
+            (segment["avg_logprob"] for segment in response.segments),
+            (segment.get("no_speech_prob", 0) for segment in response.segments),
         ),
         speaker_count=0,
         source=source,
@@ -155,6 +156,7 @@ def _transcribe_with_whisper(file_path: str) -> TranscriptionResult:
             "end": segment.end,
             "text": clean_transcript(segment.text),
             "avg_logprob": segment.avg_logprob,
+            "no_speech_prob": segment.no_speech_prob,
         }
         for segment in segment_list
     ]
@@ -163,7 +165,8 @@ def _transcribe_with_whisper(file_path: str) -> TranscriptionResult:
         text=" ".join(seg["text"] for seg in transcript_segments),
         segments=transcript_segments,
         confidence=_calculate_confidence(
-            segment.avg_logprob for segment in segment_list
+            (segment.avg_logprob for segment in segment_list),
+            (segment.no_speech_prob for segment in segment_list),
         ),
         speaker_count=0,
         source="whisper",
@@ -171,7 +174,15 @@ def _transcribe_with_whisper(file_path: str) -> TranscriptionResult:
     )
 
 
-def _calculate_confidence(avg_logprobs: Iterable[float]) -> float:
-    """Convert segment log probabilities into a rounded confidence score."""
+def _calculate_confidence(
+    avg_logprobs: Iterable[float],
+    no_speech_probs: Iterable[float] | None = None,
+) -> float:
+    """Convert log probability and no-speech probability into a confidence score."""
+    logprob_confidence = 1 + statistics.mean(avg_logprobs)
 
-    return round(1 + statistics.mean(avg_logprobs), 4)
+    if no_speech_probs is None:
+        return round(logprob_confidence, 4)
+
+    speech_confidence = 1 - statistics.mean(no_speech_probs)
+    return round((logprob_confidence + speech_confidence) / 2, 4)
