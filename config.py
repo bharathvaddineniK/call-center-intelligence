@@ -36,5 +36,5 @@ os.environ["LANGCHAIN_PROJECT"] = os.getenv("LANGSMITH_PROJECT", "call-center-in
 
 # security
 
-SUPPORTED_AUDIO_FORMATS = [".mp3", ".wav", ".flac", ".m4a"]
+SUPPORTED_AUDIO_FORMATS = {".mp3", ".wav", ".m4a", ".flac"}
 PII_ENTITIES = ["PHONE_NUMBER", "EMAIL_ADDRESS", "US_SSN", "CREDIT_CARD"]
