@@ -1,5 +1,5 @@
 from src.agents.qa_scorer import score
-from src.pipeline_models import QAResult
+from src.pipeline_models import QAResult, SummaryResult
 
 
 MOCK_TRANSCRIPT = """
@@ -8,6 +8,18 @@ Caller: My internet is not working since this morning.
 Agent: I understand. Let me help you troubleshoot that now.
 Caller: Thank you, I appreciate it.
 """.strip()
+
+MOCK_SUMMARY = SummaryResult(
+    summary="Customer called about internet outage.",
+    call_purpose="Report internet outage",
+    sentiment="negative",
+    agent_behavior="Helpful and calm",
+    key_entities=["internet", "outage"],
+    key_discussion_points=["Internet not working", "Troubleshooting steps"],
+    action_items=["Agent to escalate to technical team"],
+    resolution_status="unresolved",
+    sentiment_trajectory="Frustrated → Calm"
+)
 
 SCORE_FIELDS = (
     "empathy_score",
@@ -28,7 +40,7 @@ def get_result() -> QAResult:
     global _cached_result
 
     if _cached_result is None:
-        _cached_result = score(MOCK_TRANSCRIPT)
+        _cached_result = score(MOCK_TRANSCRIPT, MOCK_SUMMARY)
 
     return _cached_result
 
@@ -38,7 +50,7 @@ def get_repeat_result() -> QAResult:
     global _cached_repeat_result
 
     if _cached_repeat_result is None:
-        _cached_repeat_result = score(MOCK_TRANSCRIPT)
+        _cached_repeat_result = score(MOCK_TRANSCRIPT, MOCK_SUMMARY)
 
     return _cached_repeat_result
 

@@ -9,7 +9,7 @@ Agent: I understand, let me help you troubleshoot that.
 """.strip()
 
 VALID_SENTIMENTS = {"positive", "negative", "neutral"}
-REQUIRED_TEXT_FIELDS = ("summary", "intent", "sentiment", "agent_behavior")
+REQUIRED_TEXT_FIELDS = ("summary", "call_purpose", "sentiment", "agent_behavior", "sentiment_trajectory", "resolution_status")
 
 _cached_result = None
 

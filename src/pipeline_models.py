@@ -1,4 +1,4 @@
-from typing import Optional, TypedDict, List, Dict, Any
+from typing import Optional, TypedDict, List, Dict, Any, Literal
 from pydantic import BaseModel, Field
 
 class PipelineState(TypedDict):
@@ -31,10 +31,15 @@ class TranscriptionSegment(BaseModel):
 
 class SummaryResult(BaseModel):
     summary: str = Field(description="Text summary of the call")
-    intent: str = Field(description="Caller's purpose or intent")
     sentiment: str = Field(description="Overall sentiment: positive/negative/neutral")
     agent_behavior: str = Field(description="How the agent handled the call")
     key_entities: List[str] = Field(description="List of key entities extracted from the call")
+    call_purpose: str = Field(description="The purpose of the call")
+    key_discussion_points: list[str] = Field(description="List of 3 to 7 key points discussed")
+    action_items: List[str] = Field(description="List of actions to be taken and the respective owner")
+    resolution_status: Literal["resolved", "unresolved", "escalated"] = Field(description="Resolution of the call")
+    sentiment_trajectory: str = Field(description="What's the trajectory of sentiment e.g: Frustrated → Satisfied")
+
 
 class QAResult(BaseModel):
     empathy_score: float = Field(ge=0, le=100, description="Score for agent's empathy level")

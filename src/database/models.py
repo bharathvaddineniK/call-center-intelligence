@@ -49,7 +49,7 @@ class AuditLog(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     call_id: Mapped[Optional[int]] = mapped_column(ForeignKey("calls.id", ondelete="SET NULL"), nullable=True)
-    event_type: Mapped[str] = mapped_column(String(20))
+    event_type: Mapped[str] = mapped_column(String(50))
     message: Mapped[str] = mapped_column(Text)
     severity: Mapped[str] = mapped_column(String(20))
     created_at: Mapped[datetime] = mapped_column(

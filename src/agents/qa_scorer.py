@@ -1,18 +1,29 @@
 """Score call transcripts for quality assurance metrics."""
 
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
 from langsmith import traceable
-from src.pipeline_models import QAResult
-import config
+from tenacity import retry, stop_after_attempt, wait_exponential
 
-LLM = ChatOpenAI(
-    api_key=config.OPENAI_API_KEY,
-    model=config.LLM_MODEL,
-    temperature=0
+from src.agents.llm_factory import get_llm
+from src.pipeline_models import QAResult, SummaryResult
+
+
+SUMMARY_JSON_INDENT = 2
+RETRY_ATTEMPTS = 3
+RETRY_MIN_WAIT_SECONDS = 2
+RETRY_MAX_WAIT_SECONDS = 10
+
+SCORE_WEIGHTS = (
+    ("empathy_score", 0.25),
+    ("resolution_score", 0.30),
+    ("compliance_score", 0.20),
+    ("communication_score", 0.15),
+    ("professionalism_score", 0.10),
 )
 
-SYSTEM_PROMPT = """You are a call center quality analyst. Analyze only the given transcript.
+LLM = get_llm(temperature=0)
+
+SYSTEM_PROMPT = """You are a call center quality analyst. Analyze only the given transcript and summary.
 
 Return the following fields:
 1. empathy_score: score for agent's empathy level.
@@ -35,32 +46,54 @@ Hard rules:
 2. Do not infer or assume missing details.
 """
 
-HUMAN_PROMPT = "Analyse the transcript:\n\n{transcript}"
+HUMAN_PROMPT = "Analyse the Transcript:\n\n{transcript}\n\nCall Summary:\n\n{summary}"
 
-QA_PROMPT = ChatPromptTemplate.from_messages([
-    ("system", SYSTEM_PROMPT),
-    ("human", HUMAN_PROMPT)
-])
+QA_PROMPT = ChatPromptTemplate.from_messages(
+    [
+        ("system", SYSTEM_PROMPT),
+        ("human", HUMAN_PROMPT),
+    ]
+)
 
 STRUCTURED_LLM = LLM.with_structured_output(QAResult)
 QA_CHAIN = QA_PROMPT | STRUCTURED_LLM
 
+
 @traceable
-def score(transcript_text: str) -> QAResult:
+def score(transcript_text: str, summary: SummaryResult) -> QAResult:
     """Analyze a transcript and return structured QA scores."""
-    result = QA_CHAIN.invoke({"transcript": transcript_text})
+    result = _invoke_with_retry(QA_CHAIN, _build_score_inputs(transcript_text, summary))
     result.overall_score = _recompute_overall_score(result)
 
     return result
 
+
+def _build_score_inputs(transcript_text: str, summary: SummaryResult) -> dict:
+    """Build the prompt variables passed into the QA scoring chain."""
+    return {
+        "transcript": transcript_text,
+        "summary": summary.model_dump_json(indent=SUMMARY_JSON_INDENT),
+    }
+
+
 def _recompute_overall_score(result: QAResult) -> float:
     """Calculate the weighted overall QA score from individual category scores."""
-    overall_score = (
-        result.empathy_score * 0.25 +
-        result.resolution_score * 0.30 +
-        result.compliance_score * 0.20 +
-        result.communication_score * 0.15 +
-        result.professionalism_score * 0.10
-    ) 
+    overall_score = sum(
+        getattr(result, score_field) * weight
+        for score_field, weight in SCORE_WEIGHTS
+    )
 
-    return round(overall_score,2)
+    return round(overall_score, 2)
+
+
+@retry(
+    stop=stop_after_attempt(RETRY_ATTEMPTS),
+    wait=wait_exponential(
+        multiplier=1,
+        min=RETRY_MIN_WAIT_SECONDS,
+        max=RETRY_MAX_WAIT_SECONDS,
+    ),
+)
+def _invoke_with_retry(chain, inputs):
+    """Invoke a LangChain chain with retry handling for transient failures."""
+    return chain.invoke(inputs)
