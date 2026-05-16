@@ -11,7 +11,7 @@ from faster_whisper import WhisperModel
 from groq import Groq
 from langsmith import traceable
 
-from src.audio.cache import compute_hash, get_cached_transcript
+from src.audio.cache import compute_hash, get_cached_transcript, save_to_cache
 from src.audio.cleaner import clean_transcript
 
 logger = logging.getLogger(__name__)
@@ -54,13 +54,27 @@ class TranscriptionResult:
 
 @traceable
 def get_transcription(file_path: str) -> TranscriptionResult:
-    """Return a cached transcript, or transcribe with Groq and fall back to Whisper."""
+    """Return a cached transcript, or transcribe with Groq and fall back to Whisper.
+    And save the result to cache"""
     file_hash = compute_hash(file_path)
     cached_call = get_cached_transcript(file_hash)
 
     if cached_call is not None:
         return _build_cached_result(cached_call)
 
+    result = _transcribe(file_path)
+    save_to_cache(
+        file_hash=file_hash,
+        text=result.text, 
+        segments=result.segments, 
+        confidence=result.confidence, 
+        duration=result.duration
+    )  
+    return result
+    
+
+def _transcribe(file_path: str) -> TranscriptionResult:
+    """Try Groq primary, then Groq turbo, then local Whisper."""
     try:
         return _transcribe_with_groq(file_path)
     except Exception as e:
@@ -73,7 +87,6 @@ def get_transcription(file_path: str) -> TranscriptionResult:
         except Exception as e:
             logger.warning("Groq turbo failed, falling back to Whisper: %s", e)
             return _transcribe_with_whisper(file_path)
-
 
 def _build_cached_result(cached_call: dict) -> TranscriptionResult:
     """Build a transcription result from a cached database row."""

@@ -12,9 +12,11 @@ REDACTED_SSN = "[REDACTED_SSN]"
 REDACTED_CREDIT_CARD = "[REDACTED_CREDIT_CARD]"
 
 FALLBACK_PATTERNS = [
-    (r"\b\d{3}-\d{2}-\d{4}\b", REDACTED_SSN),
+    (r"\b\d{3}[-\s./]\d{2}[-\s./]\d{4}\b", REDACTED_SSN),
     (r"\b\d{9}\b", REDACTED_SSN),
-    (r"\b\d{4}-\d{4}-\d{4}-\d{4}\b", REDACTED_CREDIT_CARD),
+    (r"\b(?:\+1[-\s.]?)?\(?\d{3}\)?[-\s.]?\d{3}[-\s.]?\d{4}\b", REDACTED_PHONE),
+    (r"\b[\w.+-]+@[\w.-]+\.\w+\b", REDACTED_EMAIL),
+    (r"\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b", REDACTED_CREDIT_CARD),
 ]
 
 

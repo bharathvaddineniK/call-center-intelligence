@@ -1,5 +1,5 @@
 import hashlib
-from src.database.models import Call
+from src.database.models import TranscriptionCache
 from src.database.session import session_scope
 from typing import Optional
 
@@ -14,12 +14,25 @@ def compute_hash(file_path: str) -> str:
 def get_cached_transcript(file_hash: str) -> Optional[dict]:
     """Checks the db if the given file hash is present and returns the corresponding transcription"""
     with session_scope() as session:
-        call = session.query(Call).filter(Call.file_hash == file_hash).first()
+        call = session.query(TranscriptionCache).filter(TranscriptionCache.file_hash == file_hash).first()
         if call is not None:
             return {
-                "text": call.transcription,
+                "text": call.text,
                 "segments": call.segments or [],
                 "confidence": call.confidence or 1.0,
                 "duration": call.duration
             }
         return None
+
+def save_to_cache(file_hash: str, text: str, segments: list, confidence: float, duration: float) -> None:
+    """Save a transcription result to the cache for future lookups."""
+    with session_scope() as session:
+        session.add(
+            TranscriptionCache (
+                file_hash=file_hash, 
+                text=text, 
+                segments=segments, 
+                confidence=confidence, 
+                duration=duration
+            )
+        )

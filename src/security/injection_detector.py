@@ -3,7 +3,7 @@ import re
 
 INJECTION_PATTERNS = [
     # instruction override
-    (r"\bignore\s+(the\s+)?(above|all|previous|prior|your)\s+instructions\b", "instruction override"),
+    (r"\bignore\s+(the\s+)?(all\s+previous|all\s+prior|above|all|previous|prior|your)\s+instructions\b", "instruction override"),
     (r"\bdisregard\s+(the\s+)?(above|all|previous|prior)\s+instructions\b", "instruction override"),
     (r"\bforget\s+(everything|the\s+above|all|previous|prior)\s+instructions\b", "instruction override"),
     (r"\bdo\s+not\s+follow\s+(the\s+)?(above|all|previous|prior)\s+instructions\b", "instruction override"),

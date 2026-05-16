@@ -16,7 +16,7 @@ class Call(Base):
     transcription: Mapped[str] = mapped_column(Text)
     speaker_count: Mapped[int] = mapped_column(Integer)
     sentiment: Mapped[str] = mapped_column(String(20))
-    intent: Mapped[str] = mapped_column(String(50))
+    call_purpose: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     agent_behavior: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     segments: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
@@ -52,6 +52,20 @@ class AuditLog(Base):
     event_type: Mapped[str] = mapped_column(String(50))
     message: Mapped[str] = mapped_column(Text)
     severity: Mapped[str] = mapped_column(String(20))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc)
+    )
+
+class TranscriptionCache(Base):
+    __tablename__ = "transcription_cache"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    file_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    text: Mapped[str] = mapped_column(Text)
+    segments: Mapped[dict] = mapped_column(JSON)
+    confidence: Mapped[float] = mapped_column(Float)
+    duration: Mapped[float] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=lambda: datetime.now(timezone.utc)
