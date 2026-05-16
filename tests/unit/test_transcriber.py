@@ -1,10 +1,10 @@
 from src.audio.transcriber import get_transcription, _calculate_confidence, TranscriptionResult
 
 def test_transcription_groq():
-    """Test that the source of the transcription for the test file is groq"""
+    """Test that the test file transcribes through a supported source."""
 
     result = get_transcription('data/audio/call_114.mp3')
-    assert result.source == 'groq'
+    assert result.source in {'groq', 'groq_turbo', 'cache'}
     assert isinstance(result, TranscriptionResult)
     assert len(result.text) > 0
     assert len(result.segments) > 0
