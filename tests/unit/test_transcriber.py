@@ -1,4 +1,4 @@
-from src.audio.transcriber import get_transcription, _calculate_confidence, TranscriptionResult
+from src.services.audio.transcriber import get_transcription, _calculate_confidence, TranscriptionResult
 
 def test_transcription_groq():
     """Test that the test file transcribes through a supported source."""

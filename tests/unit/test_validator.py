@@ -1,7 +1,7 @@
 import config
 import tempfile
 import os
-from src.audio.validator import validate_audio, ValidationResult
+from src.services.audio.validator import validate_audio, ValidationResult
 
 def test_valid_file():
     """Test that a valid file returns valid result"""

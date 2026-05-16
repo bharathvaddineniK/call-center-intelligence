@@ -37,22 +37,23 @@ def redact_pii(text: str) -> tuple[str, bool]:
     if text is None:
         return text, False
 
+    redacted_text, regex_found = _apply_regex_fallback(text)
+
     results = analyzer.analyze(
-        text=text,
+        text=redacted_text,
         language="en",
         entities=config.PII_ENTITIES,
     )
 
     clean_text = anonymizer.anonymize(
-        text=text,
+        text=redacted_text,
         analyzer_results=results,
         operators=operators,
     )
 
-    final_text, regex_found = _apply_regex_fallback(clean_text.text)
     pii_found = len(results) > 0 or regex_found
 
-    return final_text, pii_found
+    return clean_text.text, pii_found
 
 
 def _apply_regex_fallback(text: str) -> tuple[str, bool]:

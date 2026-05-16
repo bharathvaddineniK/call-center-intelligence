@@ -6,7 +6,7 @@ from src.database.repository import (
     save_call,
     save_report,
 )
-from src.security.audit_logger import (
+from src.services.security.audit_logger import (
     EVENT_PIPELINE_FAILED,
     EVENT_PIPELINE_STARTED,
     SEVERITY_ERROR,

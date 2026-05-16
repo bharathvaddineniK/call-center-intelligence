@@ -11,8 +11,8 @@ from faster_whisper import WhisperModel
 from groq import Groq
 from langsmith import traceable
 
-from src.audio.cache import compute_hash, get_cached_transcript, save_to_cache
-from src.audio.cleaner import clean_transcript
+from src.services.audio.cache import compute_hash, get_cached_transcript, save_to_cache
+from src.services.audio.cleaner import clean_transcript
 
 logger = logging.getLogger(__name__)
 

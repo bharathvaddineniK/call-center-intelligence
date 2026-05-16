@@ -1,4 +1,4 @@
-from src.security.injection_detector import detect_injection, get_matched_patterns
+from src.services.security.injection_detector import detect_injection, get_matched_patterns
 import pytest
 
 INJECTION_PAYLOADS = [

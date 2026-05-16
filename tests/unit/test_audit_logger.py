@@ -2,7 +2,7 @@ import pytest
 
 from src.database.models import AuditLog
 from src.database.session import init_db, session_scope
-from src.security.audit_logger import (
+from src.services.security.audit_logger import (
     EVENT_PIPELINE_FAILED,
     EVENT_PIPELINE_STARTED,
     SEVERITY_ERROR,

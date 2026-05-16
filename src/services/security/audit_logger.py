@@ -33,7 +33,7 @@ def log_event(
     severity: str,
     call_id: Optional[int] = None,
 ) -> None:
-    """Write an append-only audit event to the audit_logs table."""
+    """Write an append-only audit event to the audit_log table."""
     _validate_event_type(event_type)
     _validate_severity(severity)
 

@@ -1,4 +1,4 @@
-from src.audio.diarization import (
+from src.services.audio.diarization import (
     SPEAKER_00,
     SPEAKER_01,
     assign_speakers,

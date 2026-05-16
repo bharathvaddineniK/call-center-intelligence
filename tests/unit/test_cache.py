@@ -1,4 +1,4 @@
-from src.audio.cache import compute_hash, get_cached_transcript
+from src.services.audio.cache import compute_hash, get_cached_transcript
 
 def test_compute_hash():
     """Computes hash twice for a same file and asserts both are same"""

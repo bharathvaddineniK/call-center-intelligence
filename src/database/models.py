@@ -7,7 +7,7 @@ class Base(DeclarativeBase):
     pass
 
 class Call(Base):
-    __tablename__ = "calls"
+    __tablename__ = "call_records"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     filename: Mapped[str] = mapped_column(String(255))
@@ -29,7 +29,7 @@ class Report(Base):
     __tablename__ = "reports"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    call_id: Mapped[int] = mapped_column(ForeignKey("calls.id"), unique=True)
+    call_id: Mapped[int] = mapped_column(ForeignKey("call_records.id"), unique=True)
     overall_score: Mapped[float] = mapped_column(Float)
     empathy_score: Mapped[float] = mapped_column(Float)
     resolution_score: Mapped[float] = mapped_column(Float)
@@ -45,10 +45,10 @@ class Report(Base):
     )
 
 class AuditLog(Base):
-    __tablename__ = "audit_logs"
+    __tablename__ = "audit_log"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    call_id: Mapped[Optional[int]] = mapped_column(ForeignKey("calls.id", ondelete="SET NULL"), nullable=True)
+    call_id: Mapped[Optional[int]] = mapped_column(ForeignKey("call_records.id", ondelete="SET NULL"), nullable=True)
     event_type: Mapped[str] = mapped_column(String(50))
     message: Mapped[str] = mapped_column(Text)
     severity: Mapped[str] = mapped_column(String(20))

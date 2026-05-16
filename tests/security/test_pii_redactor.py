@@ -1,6 +1,6 @@
 import pytest
 
-from src.security.pii_redactor import (
+from src.services.security.pii_redactor import (
     REDACTED_CREDIT_CARD,
     REDACTED_EMAIL,
     REDACTED_PHONE,

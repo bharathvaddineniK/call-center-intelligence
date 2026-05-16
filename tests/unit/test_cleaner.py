@@ -1,4 +1,4 @@
-from src.audio.cleaner import clean_transcript
+from src.services.audio.cleaner import clean_transcript
 
 
 def test_removes_blank_audio_tag():

@@ -2,7 +2,7 @@ import json
 from unittest.mock import MagicMock
 
 from src.pipeline_models import SummaryResult
-from src.reports.generator import generate_json, generate_pdf
+from src.services.reports.generator import generate_json, generate_pdf
 
 
 def create_mock_call():
