@@ -7,11 +7,12 @@ class PipelineState(TypedDict):
     duration: Optional[float]
     transcript: Optional[str]
     segments: Optional[List[Dict[str, Any]]]
+    confidence: Optional[float] 
     speaker_count: Optional[int]
     pii_detected: Optional[bool]
     injection_detected: Optional[bool]
     sentiment: Optional[str]
-    intent: Optional[str]
+    call_purpose: Optional[str]
     agent_behavior: Optional[str]
     qa_scores: Optional[Dict[str, float]]
     overall_score: Optional[float]
@@ -20,7 +21,9 @@ class PipelineState(TypedDict):
     call_id: Optional[int]
     report_path: Optional[str]
     error: Optional[str]
+    supervisor_review_needed: Optional[bool]
     audit_events: Optional[List[Dict[str, Any]]]
+    summary_json: Optional[str]
 
 class TranscriptionSegment(BaseModel):
     start: float = Field(description="Start time of the segment in seconds")

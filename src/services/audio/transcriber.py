@@ -50,6 +50,7 @@ class TranscriptionResult:
     speaker_count: int
     source: str
     duration: float
+    file_hash: str = ""
 
 
 @traceable
@@ -60,9 +61,16 @@ def get_transcription(file_path: str) -> TranscriptionResult:
     cached_call = get_cached_transcript(file_hash)
 
     if cached_call is not None:
-        return _build_cached_result(cached_call)
+        result = _build_cached_result(cached_call)
+        result.file_hash = file_hash
+        return result
 
-    result = _transcribe(file_path)
+    try:
+        result = _transcribe(file_path)
+    except Exception as e:
+        raise RuntimeError(f"Transcription failed for {file_path}") from e
+
+    result.file_hash = file_hash
     save_to_cache(
         file_hash=file_hash,
         text=result.text, 

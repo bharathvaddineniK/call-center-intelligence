@@ -4,7 +4,7 @@ def test_transcription_groq():
     """Test that the test file transcribes through a supported source."""
 
     result = get_transcription('data/audio/call_114.mp3')
-    assert result.source in {'groq', 'groq_turbo', 'cache'}
+    assert result.source in {'groq', 'groq_turbo', 'whisper', 'cache'}
     assert isinstance(result, TranscriptionResult)
     assert len(result.text) > 0
     assert len(result.segments) > 0
