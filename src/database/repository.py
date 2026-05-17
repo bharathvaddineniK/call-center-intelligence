@@ -3,6 +3,13 @@ from typing import Optional
 from src.database.models import Call, Report, AuditLog
 from src.database.session import session_scope
 
+def get_call_by_hash(file_hash: str) -> Optional[Call]:
+    """Return a call record by file hash."""
+    with session_scope() as session:
+        call = session.query(Call).filter(Call.file_hash == file_hash).first()
+        if call:
+            session.expunge(call)
+        return call
 
 def save_call(
     *,
@@ -50,23 +57,25 @@ def save_report(
     compliance_flag: bool,
     pdf_path: str,
 ) -> int:
-    """Save a report record and return the new report id."""
-
-    report = Report(
-        call_id=call_id,
-        overall_score=overall_score,
-        empathy_score=empathy_score,
-        resolution_score=resolution_score,
-        compliance_score=compliance_score,
-        communication_score=communication_score,
-        professionalism_score=professionalism_score,
-        summary=summary,
-        compliance_flag=compliance_flag,
-        pdf_path=pdf_path,
-    )
+    """Save or update a report record and return the report id."""
 
     with session_scope() as session:
-        session.add(report)
+        report = session.query(Report).filter(Report.call_id == call_id).first()
+
+        if report is None:
+            report = Report(call_id=call_id)
+            session.add(report)
+
+        report.overall_score = overall_score
+        report.empathy_score = empathy_score
+        report.resolution_score = resolution_score
+        report.compliance_score = compliance_score
+        report.communication_score = communication_score
+        report.professionalism_score = professionalism_score
+        report.summary = summary
+        report.compliance_flag = compliance_flag
+        report.pdf_path = pdf_path
+
         session.flush()
         session.refresh(report)
         return report.id
@@ -95,7 +104,7 @@ def get_all_calls(limit: int = 20) -> list[Call]:
 def get_report_by_call_id(call_id: int) -> Optional[Report]:
     """Return a report record by call id."""
     with session_scope() as session:
-        report = session.query(Report).filter(Report.call_id == call_id).first()
+        report = session.query(Report).filter(Report.call_id == call_id).order_by(Report.id.desc()).first()
         if report is not None:
             session.expunge(report)
         return report

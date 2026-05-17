@@ -100,6 +100,43 @@ def test_get_report_by_call_id():
     assert report.summary == "The agent helped the caller."
 
 
+def test_save_report_updates_existing_report_for_call():
+    """Save a second report for the same call by updating the existing row."""
+    call_id = create_test_call()
+
+    first_report_id = save_report(
+        call_id=call_id,
+        overall_score=85.0,
+        empathy_score=90.0,
+        resolution_score=80.0,
+        compliance_score=85.0,
+        communication_score=88.0,
+        professionalism_score=92.0,
+        summary="The agent helped the caller.",
+        compliance_flag=True,
+        pdf_path="reports/old-call.pdf",
+    )
+    second_report_id = save_report(
+        call_id=call_id,
+        overall_score=70.0,
+        empathy_score=75.0,
+        resolution_score=65.0,
+        compliance_score=80.0,
+        communication_score=70.0,
+        professionalism_score=72.0,
+        summary="The updated report summary.",
+        compliance_flag=False,
+        pdf_path="reports/new-call.pdf",
+    )
+
+    report = get_report_by_call_id(call_id)
+
+    assert second_report_id == first_report_id
+    assert report.overall_score == 70.0
+    assert report.summary == "The updated report summary."
+    assert report.pdf_path == "reports/new-call.pdf"
+
+
 def test_get_recent_audit_logs():
     """Save audit logs and return the most recent entries."""
     log_event(

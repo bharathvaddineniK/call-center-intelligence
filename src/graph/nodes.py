@@ -24,7 +24,7 @@ from src.services.security.pii_redactor import redact_pii
 from src.services.reports.generator import generate_json, generate_pdf
 from src.agents.summarizer import summarize
 from src.agents.qa_scorer import score
-from src.database.repository import save_call, save_report
+from src.database.repository import save_call, save_report, get_call_by_hash
 
 def intake_node(state: PipelineState) -> dict:
     """Validates the audio and returns the duration of the audio"""
@@ -212,18 +212,22 @@ def report_node(state: PipelineState) -> dict:
         audio_path = state["audio_path"]
         filename = Path(audio_path).name
 
-        call_id = save_call(
-            filename=filename,
-            file_hash=file_hash,
-            duration=duration,
-            transcription=transcript,
-            speaker_count=speaker_count,
-            sentiment=sentiment,
-            call_purpose=call_purpose,
-            agent_behavior=agent_behavior,
-            segments=segments,
-            confidence=confidence,
-        )
+        existing_call = get_call_by_hash(file_hash)
+        if existing_call:
+            call_id = existing_call.id
+        else:
+            call_id = save_call(
+                filename=filename,
+                file_hash=file_hash,
+                duration=duration,
+                transcription=transcript,
+                speaker_count=speaker_count,
+                sentiment=sentiment,
+                call_purpose=call_purpose,
+                agent_behavior=agent_behavior,
+                segments=segments,
+                confidence=confidence,
+            )
 
         summary = SummaryResult.model_validate_json(summary_json)
         call = SimpleNamespace(
