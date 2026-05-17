@@ -288,7 +288,7 @@ def report_node(state: PipelineState) -> dict:
 
 
 def error_node(state: PipelineState) -> dict:
-    """Log the existing pipeline error and return state unchanged."""
+    """Log the existing pipeline error and return an empty update."""
     log_event(
         event_type=EVENT_PIPELINE_FAILED,
         message=state.get("error", "Pipeline failed"),
@@ -296,7 +296,7 @@ def error_node(state: PipelineState) -> dict:
         call_id=state.get("call_id"),
     )
 
-    return {} 
+    return {}
 
 
 def supervisor_node(state: PipelineState) -> dict:
