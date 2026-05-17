@@ -1,8 +1,13 @@
+import csv
 import shutil
+from datetime import UTC
+from html import escape
 from pathlib import Path
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import gradio as gr
+
 import config
 from src.database.repository import (
     get_all_calls,
@@ -10,7 +15,6 @@ from src.database.repository import (
     get_report_by_call_id,
 )
 from src.graph.pipeline import pipeline
-
 
 PROCESSING_MESSAGE = """
 ### Processing call
@@ -20,6 +24,23 @@ Please do not refresh or close this page while the pipeline is running.
 """
 AUDIT_LOG_HEADERS = ["Time", "Severity", "Event", "Call ID", "Message"]
 EMPTY_AUDIT_LOG_ROWS = [["", "", "", "", ""]]
+DISPLAY_TIMEZONE = ZoneInfo("America/Los_Angeles")
+DISPLAY_TIMEZONE_LABEL = "Pacific Time"
+
+def get_processing_message(audio_path: str) -> str:
+    from src.services.audio.cache import compute_hash, get_cached_transcript
+
+    file_hash = compute_hash(audio_path)
+    if get_cached_transcript(file_hash):
+        return (
+            "### Processing call\n"
+            "This file was previously analyzed — retrieving from cache. "
+            "Should complete in seconds."
+        )
+    return """### Processing call
+Estimated duration: 30 seconds to 2 minutes depending on audio length.
+
+Please do not refresh or close this page while the pipeline is running."""
 
 
 def copy_audio_to_data_dir(audio_path: str) -> str:
@@ -30,7 +51,9 @@ def copy_audio_to_data_dir(audio_path: str) -> str:
     if source_path.resolve().parent == config.AUDIO_DIR.resolve():
         return str(source_path)
 
-    destination_path = config.AUDIO_DIR / f"{source_path.stem}_{uuid4().hex[:8]}{source_path.suffix}"
+    destination_path = (
+        config.AUDIO_DIR / f"{source_path.stem}_{uuid4().hex[:8]}{source_path.suffix}"
+    )
     shutil.copy2(source_path, destination_path)
     return str(destination_path)
 
@@ -64,11 +87,14 @@ def get_observability_data():
     """Read pipeline metrics and audit log from DB."""
     try:
         calls = get_all_calls(limit=1000)
-        audit_logs = get_recent_audit_logs(limit=20)
+        audit_logs = get_recent_audit_logs(limit=1000)
         reports = [get_report_by_call_id(call.id) for call in calls]
         completed_reports = [report for report in reports if report is not None]
     except Exception as exc:
-        return f"### Pipeline Metrics\nUnable to load observability data: {exc}", EMPTY_AUDIT_LOG_ROWS
+        return (
+            f"### Pipeline Metrics\nUnable to load observability data: {exc}",
+            EMPTY_AUDIT_LOG_ROWS,
+        )
 
     total_calls = len(calls)
     successful_calls = len(completed_reports)
@@ -92,7 +118,7 @@ def get_observability_data():
 
     audit_rows = [
         [
-            audit_log.created_at.strftime("%Y-%m-%d %H:%M:%S"),
+            format_audit_timestamp(audit_log.created_at),
             str(audit_log.severity),
             str(audit_log.event_type),
             str(audit_log.call_id or ""),
@@ -104,27 +130,95 @@ def get_observability_data():
     return metrics_markdown, audit_rows
 
 
-def format_audit_log_markdown(audit_rows: list[list[str]]) -> str:
-    """Format audit log rows as markdown to avoid Dataframe tab-render freezes."""
+def format_audit_timestamp(timestamp) -> str:
+    """Format audit timestamps in Pacific time with an explicit timezone."""
+    if timestamp is None:
+        return ""
+
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=UTC)
+
+    local_timestamp = timestamp.astimezone(DISPLAY_TIMEZONE)
+    return local_timestamp.strftime("%Y-%m-%d %H:%M:%S %Z")
+
+
+def format_audit_log_html(audit_rows: list[list[str]]) -> str:
+    """Format audit log as a scrollable HTML table."""
     if audit_rows == EMPTY_AUDIT_LOG_ROWS:
-        return "### Audit Log\nNo audit events yet."
+        return "<p>No audit events yet.</p>"
 
-    lines = [
-        "### Audit Log",
-        "| Time | Severity | Event | Call ID | Message |",
-        "| --- | --- | --- | --- | --- |",
-    ]
+    rows_html = ""
     for time, severity, event, call_id, message in audit_rows:
-        safe_message = message.replace("|", "\\|").replace("\n", " ")
-        lines.append(f"| {time} | {severity} | {event} | {call_id} | {safe_message} |")
+        color = "red" if severity == "error" else "orange" if severity == "warning" else "green"
+        rows_html += (
+            "<tr>"
+            f"<td class='audit-time'>{escape(time)}</td>"
+            f"<td style='color:{color}'>{escape(severity)}</td>"
+            f"<td>{escape(event)}</td>"
+            f"<td>{escape(call_id)}</td>"
+            f"<td>{escape(message)}</td>"
+            "</tr>"
+        )
 
-    return "\n".join(lines)
+    return f"""
+<p style="margin:0 0 8px 0;font-size:13px;color:#555">Times shown in {DISPLAY_TIMEZONE_LABEL}.</p>
+<div style="max-height:400px;overflow-y:auto;border:1px solid #ddd;border-radius:8px">
+<table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
+<colgroup>
+<col style="width:210px">
+<col style="width:90px">
+<col style="width:180px">
+<col style="width:70px">
+<col>
+</colgroup>
+<thead style="position:sticky;top:0;background:#f5f5f5">
+<tr><th>Time</th><th>Severity</th><th>Event</th><th>Call ID</th><th>Message</th></tr>
+</thead>
+<tbody>{rows_html}</tbody>
+</table>
+</div>
+<style>
+.audit-time {{
+    white-space: nowrap;
+}}
+</style>
+"""
+
+
+def export_audit_log_csv() -> str:
+    """Export all audit logs to a CSV file."""
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    audit_logs = get_recent_audit_logs(limit=1000)
+    csv_path = config.REPORTS_DIR / "audit_log_export.csv"
+
+    with open(csv_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(AUDIT_LOG_HEADERS)
+        for log in audit_logs:
+            writer.writerow(
+                [
+                    format_audit_timestamp(log.created_at),
+                    log.severity,
+                    log.event_type,
+                    log.call_id or "",
+                    log.message,
+                ]
+            )
+
+    return gr.update(value=str(csv_path), visible=True)
 
 
 def get_observability_display():
     """Return observability metrics and audit log for Gradio display."""
     metrics_markdown, audit_rows = get_observability_data()
-    return metrics_markdown, format_audit_log_markdown(audit_rows)
+    langsmith_enabled = bool(config.LANGSMITH_API_KEY)
+    langsmith_status = "Enabled" if langsmith_enabled else "Disabled"
+    langsmith_md = f"**LangSmith:** {langsmith_status}"
+
+    if langsmith_enabled:
+        langsmith_md += f" — [View traces]({config.LANGSMITH_PROJECT_URL})"
+
+    return f"{metrics_markdown}\n{langsmith_md}", format_audit_log_html(audit_rows)
 
 
 def run_pipeline(audio_path: str):
@@ -140,8 +234,22 @@ def run_pipeline(audio_path: str):
         )
         return
 
+    try:
+        copied_audio_path = copy_audio_to_data_dir(audio_path)
+        processing_message = get_processing_message(copied_audio_path)
+    except Exception as exc:
+        yield (
+            gr.update(value=f"**Audio upload failed:** {exc}", visible=True),
+            "",
+            "",
+            "",
+            None,
+            None,
+        )
+        return
+
     yield (
-        gr.update(value=PROCESSING_MESSAGE, visible=True),
+        gr.update(value=processing_message, visible=True),
         "",
         "",
         "",
@@ -150,7 +258,6 @@ def run_pipeline(audio_path: str):
     )
 
     try:
-        copied_audio_path = copy_audio_to_data_dir(audio_path)
         result = pipeline.invoke({"audio_path": copied_audio_path})
     except Exception as exc:
         yield (
@@ -229,13 +336,21 @@ with gr.Blocks() as app:
         )
     with gr.Tab("Observability") as observability_tab:
         metrics_output = gr.Markdown()
-        audit_log_output = gr.Markdown()
+        audit_log_output = gr.HTML()
         refresh_observability_btn = gr.Button("Refresh")
+        export_btn = gr.Button("Export Audit Log")
+        csv_download = gr.DownloadButton(label="Download CSV", visible=False)
 
         refresh_observability_btn.click(
             fn=get_observability_display,
             inputs=None,
             outputs=[metrics_output, audit_log_output],
+            queue=False,
+        )
+        export_btn.click(
+            fn=export_audit_log_csv,
+            inputs=None,
+            outputs=[csv_download],
             queue=False,
         )
 

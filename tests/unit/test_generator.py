@@ -1,8 +1,8 @@
 import json
 from unittest.mock import MagicMock
 
-from src.pipeline_models import SummaryResult
-from src.services.reports.generator import generate_json, generate_pdf
+from src.pipeline_models import CallReport, SummaryResult
+from src.services.reports.generator import build_call_report, generate_json, generate_pdf
 
 
 def create_mock_call():
@@ -75,3 +75,16 @@ def test_generate_json_returns_valid_json():
     assert parsed_result["call"]["filename"] == "call_114.mp3"
     assert parsed_result["summary"]["summary"] == "The caller needed help with internet service."
     assert parsed_result["qa"]["overall_score"] == 85.0
+
+
+def test_build_call_report_returns_pydantic_model():
+    """Assemble a strongly typed CallReport model."""
+    result = build_call_report(
+        call=create_mock_call(),
+        report=create_mock_report(),
+        summary=create_summary_result(),
+    )
+
+    assert isinstance(result, CallReport)
+    assert result.call.filename == "call_114.mp3"
+    assert result.qa.compliance_flag is True

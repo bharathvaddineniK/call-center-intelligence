@@ -1,8 +1,6 @@
-from typing import Optional
 
 from src.database.models import AuditLog
 from src.database.session import session_scope
-
 
 SEVERITY_INFO = "info"
 SEVERITY_WARNING = "warning"
@@ -31,7 +29,7 @@ def log_event(
     event_type: str,
     message: str,
     severity: str,
-    call_id: Optional[int] = None,
+    call_id: int | None = None,
 ) -> None:
     """Write an append-only audit event to the audit_log table."""
     _validate_event_type(event_type)

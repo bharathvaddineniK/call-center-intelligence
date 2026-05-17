@@ -1,9 +1,10 @@
+from contextlib import contextmanager
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from contextlib import contextmanager
-from src.database.models import Base
-import config
 
+import config
+from src.database.models import Base
 
 engine = create_engine(f"sqlite:///{config.DATABASE_PATH}")
 SessionLocal = sessionmaker(bind=engine)

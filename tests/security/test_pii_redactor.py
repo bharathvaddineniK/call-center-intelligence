@@ -8,7 +8,6 @@ from src.services.security.pii_redactor import (
     redact_pii,
 )
 
-
 SSN_VARIANTS = [
     "123-45-6789",
     "123456789",

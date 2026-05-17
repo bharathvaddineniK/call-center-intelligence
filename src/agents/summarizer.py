@@ -7,7 +7,6 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from src.agents.llm_factory import get_llm
 from src.pipeline_models import SummaryResult
 
-
 LLM_TEMPERATURE = 0
 RETRY_ATTEMPTS = 3
 RETRY_MIN_WAIT_SECONDS = 2

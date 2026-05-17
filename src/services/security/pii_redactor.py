@@ -1,10 +1,10 @@
 import re
 
-import config
 from presidio_analyzer import AnalyzerEngine
 from presidio_anonymizer import AnonymizerEngine
 from presidio_anonymizer.entities import OperatorConfig
 
+import config
 
 REDACTED_PHONE = "[REDACTED_PHONE]"
 REDACTED_EMAIL = "[REDACTED_EMAIL]"

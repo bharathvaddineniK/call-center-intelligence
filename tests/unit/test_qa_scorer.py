@@ -1,6 +1,9 @@
+import pytest
+
 from src.agents.qa_scorer import score
 from src.pipeline_models import QAResult, SummaryResult
 
+pytestmark = pytest.mark.integration
 
 MOCK_TRANSCRIPT = """
 Agent: Thank you for calling support, how can I help you?

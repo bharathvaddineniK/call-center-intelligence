@@ -1,8 +1,8 @@
 from src.services.audio.diarization import (
     SPEAKER_00,
     SPEAKER_01,
-    assign_speakers,
     _detect_speaker_change,
+    assign_speakers,
 )
 
 

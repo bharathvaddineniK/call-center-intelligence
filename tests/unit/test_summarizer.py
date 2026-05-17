@@ -1,6 +1,9 @@
+import pytest
+
 from src.agents.summarizer import summarize
 from src.pipeline_models import SummaryResult
 
+pytestmark = pytest.mark.integration
 
 MOCK_TRANSCRIPT = """
 Agent: Thank you for calling support, how can I help you?
@@ -9,7 +12,14 @@ Agent: I understand, let me help you troubleshoot that.
 """.strip()
 
 VALID_SENTIMENTS = {"positive", "negative", "neutral"}
-REQUIRED_TEXT_FIELDS = ("summary", "call_purpose", "sentiment", "agent_behavior", "sentiment_trajectory", "resolution_status")
+REQUIRED_TEXT_FIELDS = (
+    "summary",
+    "call_purpose",
+    "sentiment",
+    "agent_behavior",
+    "sentiment_trajectory",
+    "resolution_status",
+)
 
 _cached_result = None
 

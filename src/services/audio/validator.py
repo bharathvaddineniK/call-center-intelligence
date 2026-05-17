@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+
+from mutagen import File as MutagenFile
 
 import config
-from mutagen import File as MutagenFile
 
 
 @dataclass
@@ -11,9 +11,9 @@ class ValidationResult:
     """Result of validating an audio file before transcription."""
 
     is_valid: bool
-    error: Optional[str]
-    duration: Optional[float]
-    file_size_mb: Optional[float]
+    error: str | None
+    duration: float | None
+    file_size_mb: float | None
 
 
 def _detect_format_by_magic_bytes(file_path: Path) -> str | None:

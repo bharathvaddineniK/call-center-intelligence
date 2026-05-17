@@ -2,7 +2,6 @@
 
 import re
 
-
 BRACKETED_ARTIFACTS = {
     "applause",
     "background noise",

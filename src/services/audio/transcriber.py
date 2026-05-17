@@ -1,16 +1,16 @@
 import logging
 import statistics
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import torch
-
-import config
 from faster_whisper import WhisperModel
 from groq import Groq
 from langsmith import traceable
 
+import config
 from src.services.audio.cache import compute_hash, get_cached_transcript, save_to_cache
 from src.services.audio.cleaner import clean_transcript
 

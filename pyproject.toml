@@ -1,0 +1,19 @@
+[project]
+name = "call-center-intelligence"
+version = "0.1.0"
+description = "LangGraph-powered call center intelligence pipeline with transcription, security checks, QA scoring, reports, and Gradio UI."
+readme = "README.md"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = []
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: marks tests that require real API keys or external services",
+]

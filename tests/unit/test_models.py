@@ -1,6 +1,8 @@
 import pytest
 from pydantic import ValidationError
-from src.pipeline_models import PipelineState, TranscriptionSegment, QAResult
+
+from src.pipeline_models import PipelineState, QAResult, TranscriptionSegment
+
 
 def test_pipeline_state():
     """Test that PipelineState can be created only with audio path"""

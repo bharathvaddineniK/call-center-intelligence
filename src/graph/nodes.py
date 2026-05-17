@@ -2,29 +2,31 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import config
+from src.agents.qa_scorer import score
+from src.agents.summarizer import summarize
+from src.database.repository import get_call_by_hash, save_call, save_report
 from src.pipeline_models import PipelineState, SummaryResult
-from src.services.audio.validator import validate_audio
-from src.services.audio.transcriber import get_transcription
+from src.services.audio.cleanup import cleanup_old_files
 from src.services.audio.diarization import assign_speakers
+from src.services.audio.transcriber import get_transcription
+from src.services.audio.validator import validate_audio
+from src.services.reports.generator import generate_json, generate_pdf
 from src.services.security.audit_logger import (
-    log_event,
-    EVENT_PIPELINE_STARTED,
-    EVENT_PIPELINE_FAILED,
-    EVENT_TRANSCRIPTION_COMPLETE,
+    EVENT_ANALYSIS_COMPLETE,
     EVENT_INJECTION_DETECTED,
     EVENT_PII_DETECTED,
-    EVENT_ANALYSIS_COMPLETE,
+    EVENT_PIPELINE_FAILED,
+    EVENT_PIPELINE_STARTED,
     EVENT_REPORT_GENERATED,
+    EVENT_TRANSCRIPTION_COMPLETE,
+    SEVERITY_ERROR,
     SEVERITY_INFO,
     SEVERITY_WARNING,
-    SEVERITY_ERROR,
+    log_event,
 )
 from src.services.security.injection_detector import detect_injection
 from src.services.security.pii_redactor import redact_pii
-from src.services.reports.generator import generate_json, generate_pdf
-from src.agents.summarizer import summarize
-from src.agents.qa_scorer import score
-from src.database.repository import save_call, save_report, get_call_by_hash
+
 
 def intake_node(state: PipelineState) -> dict:
     """Validates the audio and returns the duration of the audio"""
@@ -71,10 +73,16 @@ def transcription_node(state: PipelineState) -> dict:
 
         return {
             "file_hash": result.file_hash,
-            "transcript":result.text, 
-            "segments":segments_with_speakers,
+            "transcript": result.text,
+            "segments": segments_with_speakers,
             "confidence": result.confidence,
-            "speaker_count": len(set(s.get("speaker") for s in segments_with_speakers if s.get("speaker"))),
+            "speaker_count": len(
+                {
+                    segment.get("speaker")
+                    for segment in segments_with_speakers
+                    if segment.get("speaker")
+                }
+            ),
         }
     except Exception as e:
         log_event(
@@ -129,9 +137,17 @@ def pii_redaction_node(state: PipelineState) -> dict:
             redacted_segments.append({**segment, "text": redacted_segment_text})
         
         if pii_detected:
-            log_event(event_type=EVENT_PII_DETECTED, message="PII redacted", severity=SEVERITY_WARNING)
+            log_event(
+                event_type=EVENT_PII_DETECTED,
+                message="PII redacted",
+                severity=SEVERITY_WARNING,
+            )
         else:
-            log_event(event_type=EVENT_ANALYSIS_COMPLETE, message="No PII detected", severity=SEVERITY_INFO)
+            log_event(
+                event_type=EVENT_ANALYSIS_COMPLETE,
+                message="No PII detected",
+                severity=SEVERITY_INFO,
+            )
 
         return {
             "transcript": redacted_text,
@@ -270,6 +286,11 @@ def report_node(state: PipelineState) -> dict:
             compliance_flag=compliance_flag,
             pdf_path=str(report_path),
         )
+        cleanup_old_files(
+            str(config.AUDIO_DIR),
+            max_age_hours=config.MAX_AUDIO_AGE_HOURS,
+            filename_pattern=r".+_[0-9a-f]{8}\.(mp3|wav|m4a|flac)",
+        )
 
         log_event(
             event_type=EVENT_REPORT_GENERATED,
@@ -281,6 +302,7 @@ def report_node(state: PipelineState) -> dict:
         return {
             "call_id": call_id,
             "report_path": str(report_path),
+            "supervisor_review_needed": state.get("supervisor_review_needed"),
         }
     except Exception as e:
         log_event(

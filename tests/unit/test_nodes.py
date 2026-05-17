@@ -1,17 +1,17 @@
+from src.database.repository import get_recent_audit_logs
 from src.graph.nodes import (
     error_node,
-    intake_node,
     injection_check_node,
+    intake_node,
     pii_redaction_node,
     supervisor_node,
 )
-from src.database.repository import get_recent_audit_logs
 from src.services.security.audit_logger import (
     EVENT_ANALYSIS_COMPLETE,
-    EVENT_PIPELINE_FAILED,
-    EVENT_PIPELINE_STARTED,
     EVENT_INJECTION_DETECTED,
     EVENT_PII_DETECTED,
+    EVENT_PIPELINE_FAILED,
+    EVENT_PIPELINE_STARTED,
 )
 
 

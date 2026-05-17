@@ -1,5 +1,6 @@
-import config
 from pathlib import Path
+
+import config
 
 
 def test_config_paths():

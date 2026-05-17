@@ -1,16 +1,20 @@
 """Delete old files from local audio-related directories."""
 
 import logging
+import re
 import time
 from pathlib import Path
-
 
 logger = logging.getLogger(__name__)
 
 SECONDS_PER_HOUR = 3600
 
 
-def cleanup_old_files(directory: str, max_age_hours: int = 24) -> int:
+def cleanup_old_files(
+    directory: str,
+    max_age_hours: int = 24,
+    filename_pattern: str | None = None,
+) -> int:
     """Delete audio files older than max_age_hours. Returns count of deleted files."""
     directory_path = Path(directory)
 
@@ -20,6 +24,9 @@ def cleanup_old_files(directory: str, max_age_hours: int = 24) -> int:
     deleted_count = 0
 
     for file_path in directory_path.iterdir():
+        if filename_pattern and not re.fullmatch(filename_pattern, file_path.name):
+            continue
+
         if not _should_delete_file(file_path, max_age_hours):
             continue
 

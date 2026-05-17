@@ -2,27 +2,27 @@
 
 from langgraph.graph import END, StateGraph
 
-from src.pipeline_models import PipelineState
 from src.graph.nodes import (
-    intake_node,
-    transcription_node,
-    injection_check_node,
-    pii_redaction_node,
-    summarize_qa_node,
-    report_node,
     error_node,
+    injection_check_node,
+    intake_node,
+    pii_redaction_node,
+    report_node,
+    summarize_qa_node,
     supervisor_node,
+    transcription_node,
 )
+from src.pipeline_models import PipelineState
 
 
 def get_graph():
     """Create and compile the call processing graph."""
     graph = StateGraph(PipelineState)
     graph.add_node("intake", intake_node)
-    graph.add_node("transcribe", transcription_node)
-    graph.add_node("injection", injection_check_node)
+    graph.add_node("transcription", transcription_node)
+    graph.add_node("injection_check", injection_check_node)
     graph.add_node("pii_redaction", pii_redaction_node)
-    graph.add_node("summary", summarize_qa_node)
+    graph.add_node("summarize_qa", summarize_qa_node)
     graph.add_node("report", report_node)
     graph.add_node("error", error_node)
     graph.add_node("supervisor", supervisor_node)
@@ -32,22 +32,22 @@ def get_graph():
         "intake",
         route_default,
         {
-            "next_node": "transcribe",
+            "next_node": "transcription",
             "error": "error",
         },
     )
 
     graph.add_conditional_edges(
-        "transcribe",
+        "transcription",
         route_default,
         {
-            "next_node": "injection",
+            "next_node": "injection_check",
             "error": "error",
         },
     )
 
     graph.add_conditional_edges(
-        "injection",
+        "injection_check",
         route_after_injection,
         {
             "next_node": "pii_redaction",
@@ -59,13 +59,13 @@ def get_graph():
         "pii_redaction",
         route_default,
         {
-            "next_node": "summary",
+            "next_node": "summarize_qa",
             "error": "error",
         },
     )
 
     graph.add_conditional_edges(
-        "summary",
+        "summarize_qa",
         route_after_qa,
         {
             "next_node": "report",
@@ -84,7 +84,7 @@ def get_graph():
     )
 
     graph.add_edge("error", END)
-    graph.add_edge("supervisor", END)
+    graph.add_edge("supervisor", "report")
 
     return graph.compile()
 

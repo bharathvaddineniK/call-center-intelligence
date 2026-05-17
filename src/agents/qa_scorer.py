@@ -7,7 +7,6 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from src.agents.llm_factory import get_llm
 from src.pipeline_models import QAResult, SummaryResult
 
-
 SUMMARY_JSON_INDENT = 2
 RETRY_ATTEMPTS = 3
 RETRY_MIN_WAIT_SECONDS = 2
@@ -23,7 +22,8 @@ SCORE_WEIGHTS = (
 
 LLM = get_llm(temperature=0)
 
-SYSTEM_PROMPT = """You are a call center quality analyst. Analyze only the given transcript and summary.
+SYSTEM_PROMPT = """You are a call center quality analyst.
+Analyze only the given transcript and summary.
 
 Return the following fields:
 1. empathy_score: score for agent's empathy level.
@@ -44,7 +44,8 @@ SCORING SCALE: All scores must be between 0 and 100, where:
 Hard rules:
 1. Use only information present in the transcript.
 2. Do not infer or assume missing details.
-3. When writing reasoning, reference specific transcript timestamps where possible (e.g., "At 02:15, the agent failed to verify identity").
+3. When writing reasoning, reference specific transcript timestamps where possible.
+For example: "At 02:15, the agent failed to verify identity".
 """
 
 HUMAN_PROMPT = "Analyse the Transcript:\n\n{transcript}\n\nCall Summary:\n\n{summary}"

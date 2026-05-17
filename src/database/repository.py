@@ -1,15 +1,15 @@
-from typing import Optional
-
-from src.database.models import Call, Report, AuditLog
+from src.database.models import AuditLog, Call, Report
 from src.database.session import session_scope
 
-def get_call_by_hash(file_hash: str) -> Optional[Call]:
+
+def get_call_by_hash(file_hash: str) -> Call | None:
     """Return a call record by file hash."""
     with session_scope() as session:
         call = session.query(Call).filter(Call.file_hash == file_hash).first()
         if call:
             session.expunge(call)
         return call
+
 
 def save_call(
     *,
@@ -19,10 +19,10 @@ def save_call(
     transcription: str,
     speaker_count: int,
     sentiment: str,
-    call_purpose: Optional[str] = None,
-    agent_behavior: Optional[str] = None,
-    segments: Optional[dict] = None,
-    confidence: Optional[float] = None,
+    call_purpose: str | None = None,
+    agent_behavior: str | None = None,
+    segments: dict | None = None,
+    confidence: float | None = None,
 ) -> int:
     """Save a call record and return the new call id."""
     call = Call(
@@ -81,7 +81,7 @@ def save_report(
         return report.id
 
 
-def get_call_by_id(call_id: int) -> Optional[Call]:
+def get_call_by_id(call_id: int) -> Call | None:
     """Return a call record by id."""
 
     with session_scope() as session:
@@ -101,10 +101,15 @@ def get_all_calls(limit: int = 20) -> list[Call]:
         return calls
 
 
-def get_report_by_call_id(call_id: int) -> Optional[Report]:
+def get_report_by_call_id(call_id: int) -> Report | None:
     """Return a report record by call id."""
     with session_scope() as session:
-        report = session.query(Report).filter(Report.call_id == call_id).order_by(Report.id.desc()).first()
+        report = (
+            session.query(Report)
+            .filter(Report.call_id == call_id)
+            .order_by(Report.id.desc())
+            .first()
+        )
         if report is not None:
             session.expunge(report)
         return report
