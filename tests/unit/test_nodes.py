@@ -7,11 +7,10 @@ from src.graph.nodes import (
     supervisor_node,
 )
 from src.services.security.audit_logger import (
-    EVENT_ANALYSIS_COMPLETE,
-    EVENT_INJECTION_DETECTED,
-    EVENT_PII_DETECTED,
-    EVENT_PIPELINE_FAILED,
-    EVENT_PIPELINE_STARTED,
+    EVENT_INJECTION_SCAN,
+    EVENT_INTAKE,
+    EVENT_PII_SCAN,
+    EVENT_PIPELINE,
 )
 
 
@@ -24,7 +23,7 @@ def test_intake_node_valid_file():
     assert "error" not in result
 
     audit_logs = get_recent_audit_logs()
-    assert audit_logs[0].event_type == EVENT_PIPELINE_STARTED
+    assert audit_logs[0].event_type == EVENT_INTAKE
 
 
 def test_intake_node_invalid_file():
@@ -34,7 +33,8 @@ def test_intake_node_invalid_file():
     assert "error" in result
 
     audit_logs = get_recent_audit_logs()
-    assert audit_logs[0].event_type == EVENT_PIPELINE_FAILED
+    assert audit_logs[0].event_type == EVENT_INTAKE
+    assert audit_logs[0].severity == "error"
 
 
 def test_injection_check_node_clean():
@@ -44,7 +44,7 @@ def test_injection_check_node_clean():
     assert result["injection_detected"] is False
 
     audit_logs = get_recent_audit_logs()
-    assert audit_logs[0].event_type == EVENT_ANALYSIS_COMPLETE
+    assert audit_logs[0].event_type == EVENT_INJECTION_SCAN
 
 
 def test_injection_check_node_malicious():
@@ -56,7 +56,8 @@ def test_injection_check_node_malicious():
     assert result["injection_detected"] is True
 
     audit_logs = get_recent_audit_logs()
-    assert audit_logs[0].event_type == EVENT_INJECTION_DETECTED
+    assert audit_logs[0].event_type == EVENT_INJECTION_SCAN
+    assert audit_logs[0].severity == "warning"
 
 
 def test_pii_redaction_node_redacts_pii():
@@ -72,7 +73,8 @@ def test_pii_redaction_node_redacts_pii():
     assert result["pii_detected"] is True
 
     audit_logs = get_recent_audit_logs()
-    assert audit_logs[0].event_type == EVENT_PII_DETECTED
+    assert audit_logs[0].event_type == EVENT_PII_SCAN
+    assert audit_logs[0].severity == "warning"
 
 
 def test_pii_redaction_node_clean_text():
@@ -89,7 +91,7 @@ def test_pii_redaction_node_clean_text():
     assert result["pii_detected"] is False
 
     audit_logs = get_recent_audit_logs()
-    assert audit_logs[0].event_type == EVENT_ANALYSIS_COMPLETE
+    assert audit_logs[0].event_type == EVENT_PII_SCAN
 
 
 def test_error_node_logs_error():
@@ -99,7 +101,7 @@ def test_error_node_logs_error():
     assert result == {}
 
     audit_logs = get_recent_audit_logs()
-    assert audit_logs[0].event_type == EVENT_PIPELINE_FAILED
+    assert audit_logs[0].event_type == EVENT_PIPELINE
 
 
 def test_supervisor_node_sets_flag():

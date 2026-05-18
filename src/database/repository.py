@@ -127,3 +127,13 @@ def get_recent_audit_logs(limit: int = 20) -> list[AuditLog]:
         for audit_log in audit_logs:
             session.expunge(audit_log)
         return audit_logs
+
+
+def get_table_counts() -> dict[str, int]:
+    """Return row counts for observability storage diagnostics."""
+    with session_scope() as session:
+        return {
+            "calls": session.query(Call).count(),
+            "reports": session.query(Report).count(),
+            "audit_logs": session.query(AuditLog).count(),
+        }

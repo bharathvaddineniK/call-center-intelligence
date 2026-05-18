@@ -13,34 +13,928 @@ from src.database.repository import (
     get_all_calls,
     get_recent_audit_logs,
     get_report_by_call_id,
+    get_table_counts,
 )
 from src.graph.pipeline import pipeline
+from src.services.audio.validator import validate_audio
 
-PROCESSING_MESSAGE = """
-### Processing call
-Estimated duration: 1 to 3 minutes, depending on audio length and model latency.
-
-Please do not refresh or close this page while the pipeline is running.
-"""
 AUDIT_LOG_HEADERS = ["Time", "Severity", "Event", "Call ID", "Message"]
 EMPTY_AUDIT_LOG_ROWS = [["", "", "", "", ""]]
 DISPLAY_TIMEZONE = ZoneInfo("America/Los_Angeles")
 DISPLAY_TIMEZONE_LABEL = "Pacific Time"
+AUDIT_EVENT_LABELS = {
+    "intake": "Intake",
+    "transcription": "Transcription",
+    "injection_scan": "Injection Scan",
+    "pii_scan": "PII Scan",
+    "summary": "Summary",
+    "qa_scoring": "QA Scoring",
+    "supervisor_review": "Supervisor Review",
+    "report_generation": "Report Generation",
+    "pipeline": "Pipeline",
+    # Labels for rows written by older app versions.
+    "intake_validated": "Intake Validated",
+    "transcription_completed": "Transcription Completed",
+    "transcription_cache_hit": "Transcript Cache Hit",
+    "injection_scan_clean": "Injection Scan Clean",
+    "injection_detected": "Injection Detected",
+    "pii_scan_clean": "PII Scan Clean",
+    "pii_redacted": "PII Redacted",
+    "summary_generated": "Summary Generated",
+    "qa_scoring_completed": "QA Scoring Completed",
+    "supervisor_review_flagged": "Supervisor Review Flagged",
+    "report_generated": "Report Generated",
+    "pipeline_failed": "Pipeline Failed",
+    # Labels for rows written by older app versions.
+    "pipeline_started": "Intake Validated",
+    "transcription_complete": "Transcription Completed",
+    "analysis_complete": "Analysis Step Completed",
+    "pii_detected": "PII Redacted",
+}
+PIPELINE_PROGRESS = {
+    "intake": (12, "Validating intake"),
+    "transcription": (35, "Transcribing audio"),
+    "injection_check": (48, "Scanning for injection"),
+    "pii_redaction": (58, "Checking PII"),
+    "summarize_qa": (82, "Generating summary and QA"),
+    "supervisor": (88, "Checking supervisor review"),
+    "report": (100, "Reports generated"),
+    "error": (100, "Pipeline stopped"),
+}
+PIPELINE_NEXT_STEP = {
+    "intake": "transcription",
+    "transcription": "injection_check",
+    "injection_check": "pii_redaction",
+    "pii_redaction": "summarize_qa",
+    "summarize_qa": "report",
+    "supervisor": "report",
+}
+
+APP_CSS = """
+:root {
+    --brand: #256f63;
+    --brand-dark: #17483f;
+    --accent: #5b5bd6;
+    --conversation-agent: #2f5f9f;
+    --conversation-agent-label: #24528a;
+    --ink: #1f2937;
+    --muted: #667085;
+    --line: #d8dee8;
+    --surface: #f6f7fb;
+    --panel: #ffffff;
+    --success: #17845b;
+    --warning: #a15c07;
+    --danger: #b42318;
+}
+
+.gradio-container {
+    max-width: none !important;
+    width: 100vw !important;
+    min-height: 100vh !important;
+    margin: 0 !important;
+    background: linear-gradient(180deg, #f5f7fb 0%, #eef4f1 100%) !important;
+    color: var(--ink) !important;
+}
+
+.app-shell {
+    width: 100% !important;
+    padding: 12px 18px 18px;
+}
+
+.app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.82);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    box-shadow: 0 1px 3px rgba(31, 41, 55, 0.04);
+}
+
+.app-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.app-logo {
+    display: grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border-radius: 8px;
+    color: white;
+    background: var(--brand);
+    font-weight: 900;
+}
+
+.app-kicker {
+    margin: 0;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.app-header h1 {
+    margin: 0;
+    font-size: 20px;
+    line-height: 1.1;
+    letter-spacing: 0;
+}
+
+.app-header p {
+    margin: 0;
+    max-width: 520px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+.section-title h2 {
+    margin: 0 0 4px;
+    font-size: 19px;
+}
+
+.section-title p {
+    margin: 0 0 14px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.input-panel,
+.output-panel,
+.observability-panel {
+    background: var(--panel);
+    border: 1px solid #e5e9f0;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 1px 3px rgba(23, 33, 43, 0.04);
+}
+
+#analysis-layout,
+.analysis-layout {
+    display: grid !important;
+    grid-template-columns: minmax(300px, 360px) minmax(0, 1fr) !important;
+    gap: 12px !important;
+    align-items: start !important;
+    width: 100% !important;
+}
+
+#analysis-layout > *,
+.analysis-layout > * {
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+.output-panel {
+    min-height: calc(100vh - 210px);
+}
+
+.workspace-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+    gap: 12px;
+    align-items: start;
+}
+
+.workspace-main,
+.workspace-side {
+    display: grid;
+    gap: 12px;
+}
+
+.analyze-button,
+.refresh-button,
+.export-button,
+.report-download,
+.csv-download {
+    border-radius: 7px !important;
+    font-weight: 700 !important;
+}
+
+.analyze-button,
+.report-download,
+.export-button,
+.csv-download,
+.analyze-button button,
+.report-download button,
+.export-button button,
+.csv-download button {
+    background: var(--brand) !important;
+    border-color: var(--brand) !important;
+    color: white !important;
+}
+
+.analyze-button:hover,
+.report-download:hover,
+.export-button:hover,
+.csv-download:hover,
+.analyze-button button:hover,
+.report-download button:hover,
+.export-button button:hover,
+.csv-download button:hover {
+    background: var(--brand-dark) !important;
+}
+
+.refresh-button,
+.refresh-button button {
+    background: #eef5f2 !important;
+    border-color: #bfd9d2 !important;
+    color: var(--brand-dark) !important;
+}
+
+.status-box {
+    border-left: 0;
+}
+
+.status-card {
+    border: 1px solid #cfeee6;
+    border-left: 5px solid var(--brand);
+    border-radius: 8px;
+    padding: 12px;
+    background: #effaf6;
+}
+
+.status-title {
+    margin: 0 0 5px;
+    color: var(--ink);
+    font-size: 15px;
+    font-weight: 850;
+}
+
+.status-detail {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.progress-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 10px;
+    align-items: center;
+    margin: 10px 0 8px;
+    color: var(--brand-dark);
+    font-size: 12px;
+    font-weight: 850;
+}
+
+.progress-track {
+    height: 7px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: #d8eee8;
+}
+
+.progress-bar {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--brand), var(--accent));
+    transition: width 240ms ease;
+    position: relative;
+}
+
+.progress-bar::after {
+    animation: progress-shine 1.2s linear infinite;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+    content: "";
+    inset: 0;
+    position: absolute;
+}
+
+@keyframes progress-shine {
+    from {
+        transform: translateX(-100%);
+    }
+    to {
+        transform: translateX(100%);
+    }
+}
+
+.report-panel {
+    border-top: 1px solid #e5e9f0;
+    margin-top: 12px;
+    padding-top: 12px;
+}
+
+.report-panel-title {
+    margin: 0 0 4px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.report-panel-status {
+    margin: 0 0 10px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.report-panel-ready .report-panel-status {
+    color: var(--brand-dark);
+    font-weight: 700;
+}
+
+.download-row {
+    gap: 8px !important;
+}
+
+.report-download {
+    min-height: 40px !important;
+}
+
+.report-download[disabled],
+.csv-download[disabled],
+.report-download button:disabled,
+.csv-download button:disabled,
+.report-download button[aria-disabled="true"],
+.csv-download button[aria-disabled="true"] {
+    background: #f3f6f8 !important;
+    border-color: #e1e7ef !important;
+    color: #8a94a3 !important;
+    box-shadow: none !important;
+}
+
+.conversation-panel {
+    border: 1px solid #e4e9f1;
+    border-radius: 8px;
+    background: #ffffff;
+    overflow: hidden;
+}
+
+.conversation-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    background: #eef5f2;
+    border-bottom: 1px solid #e4e9f1;
+}
+
+.conversation-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 800;
+}
+
+.conversation-pills {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.conversation-pill {
+    border-radius: 999px;
+    padding: 5px 11px;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.conversation-pill-live {
+    color: white;
+    background: var(--brand);
+}
+
+.conversation-pill-confidence {
+    color: #3d4a5c;
+    background: #e6e8ff;
+}
+
+.conversation-body {
+    padding: 14px 14px 16px;
+    max-height: clamp(320px, calc(100vh - 360px), 560px);
+    overflow-y: auto;
+}
+
+.conversation-row {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 14px;
+}
+
+.conversation-row-customer {
+    align-items: flex-end;
+}
+
+.speaker-meta {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    margin-bottom: 7px;
+    color: #667085;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.conversation-row-customer .speaker-meta {
+    justify-content: flex-end;
+}
+
+.speaker-name-agent {
+    color: var(--conversation-agent-label);
+}
+
+.speaker-name-customer {
+    color: #475467;
+}
+
+.conversation-bubble {
+    width: min(86%, 820px);
+    border-radius: 8px;
+    padding: 11px 13px;
+    font-size: 14px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.conversation-bubble-agent {
+    color: white;
+    background: var(--conversation-agent);
+}
+
+.conversation-bubble-customer {
+    color: #1d2939;
+    background: #f0f1ff;
+    border: 1px solid #dde2ff;
+}
+
+.conversation-summary {
+    display: flex;
+    gap: 12px;
+    margin: 4px 0 16px;
+    padding: 11px 12px;
+    border-left: 5px solid var(--success);
+    border-radius: 7px;
+    color: #14532d;
+    background: #e5f8ee;
+}
+
+.transcript-box textarea {
+    min-height: 220px !important;
+    max-height: 34vh !important;
+    overflow-y: auto !important;
+}
+
+.content-panel {
+    border: 1px solid #e4e9f1;
+    border-radius: 8px;
+    background: var(--panel);
+    overflow: hidden;
+}
+
+.content-panel-header {
+    padding: 12px 14px;
+    background: #f3f4f8;
+    border-bottom: 1px solid #e4e9f1;
+}
+
+.content-panel-title {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 850;
+}
+
+.content-panel-body {
+    padding: 14px;
+}
+
+.summary-grid,
+.qa-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.summary-card,
+.qa-card {
+    border: 1px solid #edf1f5;
+    border-radius: 7px;
+    padding: 10px 11px;
+    background: #ffffff;
+}
+
+.summary-card-wide {
+    grid-column: 1 / -1;
+}
+
+.summary-label,
+.qa-label {
+    margin: 0 0 5px;
+    color: #0f766e;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.summary-value,
+.qa-value {
+    margin: 0;
+    color: #111827;
+    font-size: 14px;
+    line-height: 1.45;
+    font-weight: 600;
+}
+
+.usage-inline {
+    margin-top: 10px;
+    border-top: 1px solid #e5e9f0;
+    padding-top: 9px;
+    color: #334155;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+.qa-value {
+    font-size: 20px;
+    font-weight: 850;
+}
+
+.conversation-summary-icon {
+    width: 24px;
+    flex: 0 0 24px;
+    font-weight: 900;
+}
+
+.conversation-summary-title {
+    margin: 0 0 3px;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.conversation-summary-text {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.conversation-empty {
+    padding: 44px 18px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.placeholder-panel {
+    padding: 18px 14px;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+textarea {
+    font-size: 13px !important;
+    line-height: 1.45 !important;
+}
+
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(130px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.metric-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 11px 12px;
+    min-height: 76px;
+}
+
+.metric-label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+}
+
+.metric-value {
+    color: var(--ink);
+    font-size: 28px;
+    line-height: 1.2;
+    font-weight: 800;
+    margin-top: 7px;
+}
+
+.langsmith-status {
+    margin: 2px 0 18px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.storage-status {
+    margin: 4px 0 16px;
+    border-radius: 8px;
+    padding: 10px 12px;
+    background: #f8fafc;
+    color: #334155;
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.storage-status strong {
+    color: var(--ink);
+}
+
+.storage-warning {
+    margin-top: 6px;
+    color: #9a3412;
+    font-weight: 750;
+}
+
+.audit-note {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.audit-table-wrap {
+    max-height: 440px;
+    overflow-y: auto;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: white;
+}
+
+.audit-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    table-layout: fixed;
+}
+
+.audit-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #eef4f5;
+    color: var(--ink);
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line);
+}
+
+.audit-table td {
+    padding: 13px 14px;
+    border-bottom: 1px solid #edf1f3;
+    vertical-align: middle;
+    overflow-wrap: anywhere;
+}
+
+.audit-table tr:hover td {
+    background: #f8fbfc;
+}
+
+.audit-time {
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.severity-pill {
+    display: inline-block;
+    min-width: 64px;
+    border-radius: 999px;
+    padding: 4px 8px;
+    text-align: center;
+    font-weight: 700;
+    font-size: 12px;
+}
+
+.severity-error {
+    color: var(--danger);
+    background: #fff1ef;
+}
+
+.severity-warning {
+    color: var(--warning);
+    background: #fff7e8;
+}
+
+.severity-info {
+    color: var(--success);
+    background: #eef8f3;
+}
+
+@media (max-width: 860px) {
+    .app-header {
+        display: block;
+    }
+
+    .workspace-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .analysis-layout {
+        grid-template-columns: 1fr !important;
+    }
+
+    .metrics-grid {
+        grid-template-columns: repeat(2, minmax(130px, 1fr));
+    }
+
+    .summary-grid,
+    .qa-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 620px) {
+    .app-shell {
+        padding: 14px;
+    }
+
+    .metrics-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .conversation-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .conversation-bubble {
+        width: 100%;
+    }
+}
+"""
+
+
+def format_status_html(
+    title: str,
+    detail: str = "",
+    *,
+    in_progress: bool = False,
+    percent: int | None = None,
+) -> str:
+    """Format pipeline status with optional animated progress."""
+    progress_label = (
+        f"<span>{escape(title)} · {percent}%</span>" if percent is not None else ""
+    )
+    progress_html = (
+        "<div class='progress-row'>"
+        "<div class='progress-track'>"
+        f"<div class='progress-bar' style='width: {percent or 35}%'></div>"
+        "</div>"
+        f"{progress_label}"
+        "</div>"
+        if in_progress
+        else ""
+    )
+    return (
+        "<div class='status-card'>"
+        f"<p class='status-title'>{escape(title)}</p>"
+        f"{progress_html}"
+        f"<p class='status-detail'>{escape(detail)}</p>"
+        "</div>"
+    )
+
+
+def approximate_processing_seconds(audio_duration: float | None, cached: bool) -> int:
+    """Estimate runtime from audio duration and whether transcription is cached."""
+    duration = audio_duration or 60
+    if cached:
+        return max(12, min(75, round(10 + duration * 0.08)))
+    return max(25, min(180, round(20 + duration * 0.35)))
+
+
+def format_duration_range(seconds: int) -> str:
+    """Format an approximate runtime as a compact range."""
+    low = max(5, round(seconds * 0.75))
+    high = max(low + 5, round(seconds * 1.25))
+
+    if high < 60:
+        return f"about {low}-{high} seconds"
+
+    low_minutes = max(1, round(low / 60))
+    high_minutes = max(low_minutes, round(high / 60))
+    if low_minutes == high_minutes:
+        return f"about {high_minutes} minute"
+    return f"about {low_minutes}-{high_minutes} minutes"
+
 
 def get_processing_message(audio_path: str) -> str:
     from src.services.audio.cache import compute_hash, get_cached_transcript
 
     file_hash = compute_hash(audio_path)
-    if get_cached_transcript(file_hash):
-        return (
-            "### Processing call\n"
-            "This file was previously analyzed — retrieving from cache. "
-            "Should complete in seconds."
-        )
-    return """### Processing call
-Estimated duration: 30 seconds to 2 minutes depending on audio length.
+    cached = bool(get_cached_transcript(file_hash))
+    validation = validate_audio(audio_path)
+    time_estimate = format_duration_range(
+        approximate_processing_seconds(validation.duration, cached)
+    )
 
-Please do not refresh or close this page while the pipeline is running."""
+    if cached:
+        detail = (
+            "Cached transcript found. Running fresh summary, QA scoring, "
+            f"and report generation; expected {time_estimate}."
+        )
+    else:
+        detail = (
+            "Transcribing audio, then running security checks, summary, QA scoring, "
+            f"and reports; expected {time_estimate}."
+        )
+
+    return format_status_html(
+        "Analysis in progress",
+        detail,
+        in_progress=True,
+        percent=5,
+    )
+
+
+def build_progress_status(node_name: str) -> str:
+    """Return status HTML for a completed pipeline node."""
+    percent, label = PIPELINE_PROGRESS.get(node_name, (5, "Analysis running"))
+    return format_status_html(
+        label,
+        "Pipeline is moving through the analysis graph.",
+        in_progress=percent < 100,
+        percent=percent,
+    )
+
+
+def build_next_step_status(node_name: str) -> str | None:
+    """Return status HTML for the next long-running pipeline step."""
+    next_node = PIPELINE_NEXT_STEP.get(node_name)
+    if not next_node:
+        return None
+
+    percent, label = PIPELINE_PROGRESS[next_node]
+    return format_status_html(
+        label,
+        "Working on this step now.",
+        in_progress=percent < 100,
+        percent=percent,
+    )
+
+
+def empty_report_downloads() -> tuple:
+    """Return disabled report download controls while reports are not ready."""
+    return (
+        gr.update(value=None, label="PDF report pending", interactive=False),
+        gr.update(value=None, label="JSON report pending", interactive=False),
+    )
+
+
+def ready_report_downloads(
+    report_path: str | None,
+    json_report_path: str | None,
+) -> tuple:
+    """Return report download controls with generated files when available."""
+    return (
+        gr.update(
+            value=report_path,
+            label="Download PDF report" if report_path else "PDF report unavailable",
+            interactive=bool(report_path),
+        ),
+        gr.update(
+            value=json_report_path,
+            label="Download JSON report" if json_report_path else "JSON report unavailable",
+            interactive=bool(json_report_path),
+        ),
+    )
+
+
+def format_report_panel_html(ready: bool = False) -> str:
+    """Return the report panel header and empty/ready state copy."""
+    panel_class = "report-panel report-panel-ready" if ready else "report-panel"
+    status = (
+        "Reports are ready to download."
+        if ready
+        else "PDF and JSON reports will be available after analysis."
+    )
+    return (
+        f"<div class='{panel_class}'>"
+        "<p class='report-panel-title'>Generated Reports</p>"
+        f"<p class='report-panel-status'>{escape(status)}</p>"
+        "</div>"
+    )
+
+
+def empty_analysis_outputs() -> tuple:
+    """Return unchanged/empty outputs while progress advances."""
+    return (
+        format_conversation_html({}),
+        "",
+        format_summary_html({}),
+        format_qa_scorecard_html({}),
+        format_report_panel_html(False),
+        *empty_report_downloads(),
+    )
 
 
 def copy_audio_to_data_dir(audio_path: str) -> str:
@@ -58,19 +952,271 @@ def copy_audio_to_data_dir(audio_path: str) -> str:
     return str(destination_path)
 
 
-def format_qa_scorecard(result: dict) -> str:
-    """Format QA scores for display in the UI."""
+def format_summary_html(result: dict) -> str:
+    """Format summary details as compact HTML cards."""
+    if not result.get("summary"):
+        return (
+            "<div class='content-panel'>"
+            "<div class='content-panel-header'>"
+            "<h3 class='content-panel-title'>Summary</h3>"
+            "</div>"
+            "<div class='placeholder-panel'>Summary details will appear after analysis.</div>"
+            "</div>"
+        )
+
+    usage = get_token_usage(result)
+    fields = [
+        ("Summary", result.get("summary") or "No summary was generated.", True),
+        ("Sentiment", result.get("sentiment") or "N/A", False),
+        ("Call Purpose", result.get("call_purpose") or "N/A", False),
+        ("Agent Behavior", result.get("agent_behavior") or "N/A", True),
+        ("Compliance Flag", str(result.get("compliance_flag", "N/A")), False),
+        ("Overall QA", str(result.get("overall_score", "N/A")), False),
+    ]
+
+    cards = "".join(
+        (
+            f"<div class='summary-card {'summary-card-wide' if wide else ''}'>"
+            f"<p class='summary-label'>{escape(label)}</p>"
+            f"<p class='summary-value'>{escape(str(value))}</p>"
+            "</div>"
+        )
+        for label, value, wide in fields
+    )
+
+    return (
+        "<div class='content-panel'>"
+        "<div class='content-panel-header'>"
+        "<h3 class='content-panel-title'>Summary</h3>"
+        "</div>"
+        "<div class='content-panel-body'>"
+        f"<div class='summary-grid'>{cards}</div>"
+        "<div class='usage-inline'>"
+        f"{format_usage_label(usage)} tokens: input {usage['summary_input']:,}, "
+        f"output {usage['summary_output']:,}"
+        "</div>"
+        "</div>"
+        "</div>"
+    )
+
+
+def format_qa_scorecard_html(result: dict) -> str:
+    """Format QA scores as a stable HTML scorecard."""
+    qa_scores = result.get("qa_scores") or {}
+    if not qa_scores and result.get("overall_score") is None:
+        return (
+            "<div class='content-panel'>"
+            "<div class='content-panel-header'>"
+            "<h3 class='content-panel-title'>QA Scorecard</h3>"
+            "</div>"
+            "<div class='placeholder-panel'>QA scores will appear after analysis.</div>"
+            "</div>"
+        )
+
+    usage = get_token_usage(result)
+    fields = [
+        ("Overall", result.get("overall_score", "N/A")),
+        ("Empathy", qa_scores.get("empathy_score", "N/A")),
+        ("Resolution", qa_scores.get("resolution_score", "N/A")),
+        ("Compliance", qa_scores.get("compliance_score", "N/A")),
+        ("Communication", qa_scores.get("communication_score", "N/A")),
+        ("Professionalism", qa_scores.get("professionalism_score", "N/A")),
+    ]
+    cards = "".join(
+        (
+            "<div class='qa-card'>"
+            f"<p class='qa-label'>{escape(label)}</p>"
+            f"<p class='qa-value'>{escape(str(value))}</p>"
+            "</div>"
+        )
+        for label, value in fields
+    )
+
+    return (
+        "<div class='content-panel'>"
+        "<div class='content-panel-header'>"
+        "<h3 class='content-panel-title'>QA Scorecard</h3>"
+        "</div>"
+        "<div class='content-panel-body'>"
+        f"<div class='qa-grid'>{cards}</div>"
+        "<div class='usage-inline'>"
+        f"{format_usage_label(usage)} tokens: input {usage['qa_input']:,}, "
+        f"output {usage['qa_output']:,}"
+        "</div>"
+        "</div>"
+        "</div>"
+    )
+
+
+def format_usage_label(usage: dict) -> str:
+    """Return token usage label based on metadata source."""
+    return "Actual" if usage.get("source") == "actual" else "Estimated"
+
+
+def format_seconds(seconds: float | int | None) -> str:
+    """Format a segment offset as MM:SS or HH:MM:SS."""
+    if seconds is None:
+        return "--:--"
+
+    total_seconds = max(0, int(round(seconds)))
+    hours, remainder = divmod(total_seconds, 3600)
+    minutes, secs = divmod(remainder, 60)
+
+    if hours:
+        return f"{hours:02d}:{minutes:02d}:{secs:02d}"
+    return f"{minutes:02d}:{secs:02d}"
+
+
+def format_confidence(confidence: float | int | None) -> str:
+    """Format normalized confidence as a percentage."""
+    if confidence is None:
+        return "N/A"
+
+    confidence_value = float(confidence)
+    if confidence_value <= 1:
+        confidence_value *= 100
+
+    return f"{confidence_value:.1f}%"
+
+
+def estimate_token_count(text: str | None) -> int:
+    """Estimate token count for UI usage display."""
+    if not text:
+        return 0
+
+    return max(1, round(len(text) / 4))
+
+
+def get_token_usage(result: dict) -> dict[str, int]:
+    """Return actual token usage when available, otherwise estimate it."""
+    actual_usage = result.get("token_usage") or {}
+    summary_actual = actual_usage.get("summary") or {}
+    qa_actual = actual_usage.get("qa") or {}
+
+    if summary_actual or qa_actual:
+        actual = {
+            "summary_input": int(summary_actual.get("input_tokens", 0) or 0),
+            "summary_output": int(summary_actual.get("output_tokens", 0) or 0),
+            "qa_input": int(qa_actual.get("input_tokens", 0) or 0),
+            "qa_output": int(qa_actual.get("output_tokens", 0) or 0),
+            "total": int(summary_actual.get("total_tokens", 0) or 0)
+            + int(qa_actual.get("total_tokens", 0) or 0),
+            "source": "actual",
+        }
+        if actual["total"] > 0:
+            return actual
+
+    transcript = result.get("transcript") or ""
+    summary = result.get("summary") or ""
     qa_scores = result.get("qa_scores") or {}
 
+    if not transcript and not summary and not qa_scores:
+        return {
+            "summary_input": 0,
+            "summary_output": 0,
+            "qa_input": 0,
+            "qa_output": 0,
+            "total": 0,
+            "source": "empty",
+        }
+
+    summary_input = estimate_token_count(transcript)
+    summary_output = estimate_token_count(summary)
+    qa_input = summary_input + summary_output
+    qa_output = estimate_token_count(str(qa_scores)) + estimate_token_count(
+        str(result.get("overall_score", ""))
+    )
+
+    return {
+        "summary_input": summary_input,
+        "summary_output": summary_output,
+        "qa_input": qa_input,
+        "qa_output": qa_output,
+        "total": summary_input + summary_output + qa_input + qa_output,
+        "source": "estimated",
+    }
+
+
+def get_display_segments(result: dict) -> list[dict]:
+    """Return segments for the conversation UI, falling back to one transcript block."""
+    segments = result.get("segments") or []
+    if segments:
+        return segments
+
+    transcript = result.get("transcript") or ""
+    if not transcript.strip():
+        return []
+
+    return [{"speaker": "Transcript", "start": None, "text": transcript}]
+
+
+def normalize_speaker(speaker: str | None, index: int) -> tuple[str, str]:
+    """Return speaker display text and CSS role."""
+    if not speaker:
+        speaker = "Agent" if index % 2 == 0 else "Customer"
+
+    role = "agent" if speaker.lower().startswith("agent") else "customer"
+    return speaker, role
+
+
+def format_conversation_html(result: dict) -> str:
+    """Format transcript segments as a speaker-bubble conversation."""
+    segments = get_display_segments(result)
+    if not segments:
+        return (
+            "<div class='conversation-panel'>"
+            "<div class='conversation-empty'>Conversation will appear after analysis.</div>"
+            "</div>"
+        )
+
+    summary = result.get("summary") or "Summary will appear after analysis."
+    confidence = format_confidence(result.get("confidence"))
+    rows_html = []
+
+    if summary:
+        rows_html.append(
+            "<div class='conversation-summary'>"
+            "<div class='conversation-summary-icon'>AI</div>"
+            "<div>"
+            "<p class='conversation-summary-title'>AI Insight</p>"
+            f"<p class='conversation-summary-text'>{escape(str(summary))}</p>"
+            "</div>"
+            "</div>"
+        )
+
+    for index, segment in enumerate(segments):
+        speaker, role = normalize_speaker(segment.get("speaker"), index)
+        timestamp = format_seconds(segment.get("start"))
+        text = str(segment.get("text") or "").strip()
+        if not text:
+            continue
+
+        rows_html.append(
+            f"<div class='conversation-row conversation-row-{role}'>"
+            "<div class='speaker-meta'>"
+            f"<span class='speaker-name-{role}'>{escape(speaker)}</span>"
+            f"<span>{escape(timestamp)}</span>"
+            "</div>"
+            f"<div class='conversation-bubble conversation-bubble-{role}'>"
+            f"{escape(text)}"
+            "</div>"
+            "</div>"
+        )
+
+    body_html = "".join(rows_html)
     return f"""
-### QA Scorecard
-- **Overall:** {result.get('overall_score', 'N/A')}
-- **Empathy:** {qa_scores.get('empathy_score', 'N/A')}
-- **Resolution:** {qa_scores.get('resolution_score', 'N/A')}
-- **Compliance:** {qa_scores.get('compliance_score', 'N/A')}
-- **Communication:** {qa_scores.get('communication_score', 'N/A')}
-- **Professionalism:** {qa_scores.get('professionalism_score', 'N/A')}
-- **Compliance Flag:** {result.get('compliance_flag', 'N/A')}
+<div class="conversation-panel">
+    <div class="conversation-header">
+        <h3 class="conversation-title">Speaker Transcript</h3>
+        <div class="conversation-pills">
+            <span class="conversation-pill conversation-pill-live">Analysis</span>
+            <span class="conversation-pill conversation-pill-confidence">
+                Confidence: {escape(confidence)}
+            </span>
+        </div>
+    </div>
+    <div class="conversation-body">{body_html}</div>
+</div>
 """
 
 
@@ -86,14 +1232,42 @@ def get_json_report_path(report_path: str | None):
 def get_observability_data():
     """Read pipeline metrics and audit log from DB."""
     try:
-        calls = get_all_calls(limit=1000)
-        audit_logs = get_recent_audit_logs(limit=1000)
+        audit_logs = get_recent_audit_logs(limit=200)
+    except Exception as exc:
+        audit_rows = [
+            [
+                "",
+                "error",
+                "audit_log_load_failed",
+                "",
+                f"Unable to load audit log: {exc}",
+            ]
+        ]
+    else:
+        audit_rows = [
+            [
+                format_audit_timestamp(audit_log.created_at),
+                str(audit_log.severity),
+                str(audit_log.event_type),
+                str(audit_log.call_id or ""),
+                str(audit_log.message),
+            ]
+            for audit_log in audit_logs
+        ] or EMPTY_AUDIT_LOG_ROWS
+
+    try:
+        calls = get_all_calls(limit=500)
         reports = [get_report_by_call_id(call.id) for call in calls]
         completed_reports = [report for report in reports if report is not None]
     except Exception as exc:
         return (
-            f"### Pipeline Metrics\nUnable to load observability data: {exc}",
-            EMPTY_AUDIT_LOG_ROWS,
+            (
+                "<div class='metric-card'>"
+                "<div class='metric-label'>Pipeline Metrics</div>"
+                f"<div class='metric-value'>Unable to load</div><p>{escape(str(exc))}</p>"
+                "</div>"
+            ),
+            audit_rows,
         )
 
     total_calls = len(calls)
@@ -106,28 +1280,85 @@ def get_observability_data():
     )
     compliance_flags = sum(1 for report in completed_reports if report.compliance_flag)
 
-    metrics_markdown = f"""
-### Pipeline Metrics
-| Metric | Value |
-| --- | ---: |
-| Total Calls | {total_calls} |
-| Success Rate | {success_rate:.1f}% |
-| Average QA Score | {average_qa_score:.1f} |
-| Total Compliance Flags | {compliance_flags} |
-"""
+    metrics_html = format_metrics_html(
+        total_calls=total_calls,
+        success_rate=success_rate,
+        average_qa_score=average_qa_score,
+        compliance_flags=compliance_flags,
+    )
 
-    audit_rows = [
-        [
-            format_audit_timestamp(audit_log.created_at),
-            str(audit_log.severity),
-            str(audit_log.event_type),
-            str(audit_log.call_id or ""),
-            str(audit_log.message),
-        ]
-        for audit_log in audit_logs
-    ] or EMPTY_AUDIT_LOG_ROWS
+    return metrics_html, audit_rows
 
-    return metrics_markdown, audit_rows
+
+def format_metrics_html(
+    total_calls: int,
+    success_rate: float,
+    average_qa_score: float,
+    compliance_flags: int,
+) -> str:
+    """Format high-level observability metrics as dashboard cards."""
+    metrics = [
+        ("Total Calls", str(total_calls)),
+        ("Success Rate", f"{success_rate:.1f}%"),
+        ("Average QA Score", f"{average_qa_score:.1f}"),
+        ("Compliance Flags", str(compliance_flags)),
+    ]
+    cards = "".join(
+        (
+            "<div class='metric-card'>"
+            f"<div class='metric-label'>{escape(label)}</div>"
+            f"<div class='metric-value'>{escape(value)}</div>"
+            "</div>"
+        )
+        for label, value in metrics
+    )
+    return f"<div class='metrics-grid'>{cards}</div>"
+
+
+def format_bytes(size_bytes: int) -> str:
+    """Format a file size for storage diagnostics."""
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    if size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    return f"{size_bytes / (1024 * 1024):.1f} MB"
+
+
+def get_storage_status_html() -> str:
+    """Return SQLite storage diagnostics for the observability page."""
+    db_path = config.DATABASE_PATH
+    exists = db_path.exists()
+    size = db_path.stat().st_size if exists else 0
+
+    try:
+        counts = get_table_counts()
+    except Exception as exc:
+        return (
+            "<div class='storage-status'>"
+            "<strong>Storage:</strong> unable to inspect SQLite database at "
+            f"{escape(str(db_path))}. {escape(str(exc))}"
+            "</div>"
+        )
+
+    warning = ""
+    if counts["calls"] == 0 and counts["audit_logs"] == 0:
+        warning = (
+            "<div class='storage-warning'>"
+            "This database has no call or audit rows. In Docker, previous stats only "
+            "survive container recreation when /app/data is mounted as a volume."
+            "</div>"
+        )
+
+    return (
+        "<div class='storage-status'>"
+        f"<strong>Storage:</strong> {escape(str(db_path))} "
+        f"({format_bytes(size)}, {'exists' if exists else 'missing'})"
+        "<br>"
+        f"<strong>Rows:</strong> calls {counts['calls']}, reports {counts['reports']}, "
+        f"audit events {counts['audit_logs']}"
+        f"{warning}"
+        "</div>"
+    )
 
 
 def format_audit_timestamp(timestamp) -> str:
@@ -142,6 +1373,14 @@ def format_audit_timestamp(timestamp) -> str:
     return local_timestamp.strftime("%Y-%m-%d %H:%M:%S %Z")
 
 
+def format_audit_event_label(event_type: str) -> str:
+    """Return a readable event label for the audit table."""
+    return AUDIT_EVENT_LABELS.get(
+        event_type,
+        event_type.replace("_", " ").title(),
+    )
+
+
 def format_audit_log_html(audit_rows: list[list[str]]) -> str:
     """Format audit log as a scrollable HTML table."""
     if audit_rows == EMPTY_AUDIT_LOG_ROWS:
@@ -149,39 +1388,40 @@ def format_audit_log_html(audit_rows: list[list[str]]) -> str:
 
     rows_html = ""
     for time, severity, event, call_id, message in audit_rows:
-        color = "red" if severity == "error" else "orange" if severity == "warning" else "green"
+        severity_class = (
+            "severity-error"
+            if severity == "error"
+            else "severity-warning"
+            if severity == "warning"
+            else "severity-info"
+        )
         rows_html += (
             "<tr>"
             f"<td class='audit-time'>{escape(time)}</td>"
-            f"<td style='color:{color}'>{escape(severity)}</td>"
-            f"<td>{escape(event)}</td>"
+            f"<td><span class='severity-pill {severity_class}'>{escape(severity)}</span></td>"
+            f"<td>{escape(format_audit_event_label(event))}</td>"
             f"<td>{escape(call_id)}</td>"
             f"<td>{escape(message)}</td>"
             "</tr>"
         )
 
     return f"""
-<p style="margin:0 0 8px 0;font-size:13px;color:#555">Times shown in {DISPLAY_TIMEZONE_LABEL}.</p>
-<div style="max-height:400px;overflow-y:auto;border:1px solid #ddd;border-radius:8px">
-<table style="width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed">
+<p class="audit-note">Times shown in {DISPLAY_TIMEZONE_LABEL}.</p>
+<div class="audit-table-wrap">
+<table class="audit-table">
 <colgroup>
 <col style="width:210px">
-<col style="width:90px">
+<col style="width:120px">
 <col style="width:180px">
-<col style="width:70px">
+<col style="width:80px">
 <col>
 </colgroup>
-<thead style="position:sticky;top:0;background:#f5f5f5">
+<thead>
 <tr><th>Time</th><th>Severity</th><th>Event</th><th>Call ID</th><th>Message</th></tr>
 </thead>
 <tbody>{rows_html}</tbody>
 </table>
 </div>
-<style>
-.audit-time {{
-    white-space: nowrap;
-}}
-</style>
 """
 
 
@@ -210,27 +1450,39 @@ def export_audit_log_csv() -> str:
 
 def get_observability_display():
     """Return observability metrics and audit log for Gradio display."""
-    metrics_markdown, audit_rows = get_observability_data()
+    metrics_html, audit_rows = get_observability_data()
+    storage_html = get_storage_status_html()
     langsmith_enabled = bool(config.LANGSMITH_API_KEY)
     langsmith_status = "Enabled" if langsmith_enabled else "Disabled"
-    langsmith_md = f"**LangSmith:** {langsmith_status}"
+    langsmith_html = f"<div class='langsmith-status'><strong>LangSmith:</strong> {langsmith_status}"
 
     if langsmith_enabled:
-        langsmith_md += f" — [View traces]({config.LANGSMITH_PROJECT_URL})"
+        langsmith_html += (
+            f" - <a href='{escape(config.LANGSMITH_PROJECT_URL)}' target='_blank'>View traces</a>"
+        )
 
-    return f"{metrics_markdown}\n{langsmith_md}", format_audit_log_html(audit_rows)
+    langsmith_html += "</div>"
+
+    return f"{metrics_html}{storage_html}{langsmith_html}", format_audit_log_html(audit_rows)
 
 
 def run_pipeline(audio_path: str):
     """Run the call analysis pipeline for a Gradio-uploaded audio file."""
     if not audio_path:
         yield (
-            gr.update(value="Please upload an audio file before analyzing.", visible=True),
+            gr.update(
+                value=format_status_html(
+                    "Upload needed",
+                    "Please upload an audio file before analyzing.",
+                ),
+                visible=True,
+            ),
+            format_conversation_html({}),
             "",
-            "",
-            "",
-            None,
-            None,
+            format_summary_html({}),
+            format_qa_scorecard_html({}),
+            format_report_panel_html(False),
+            *empty_report_downloads(),
         )
         return
 
@@ -239,56 +1491,88 @@ def run_pipeline(audio_path: str):
         processing_message = get_processing_message(copied_audio_path)
     except Exception as exc:
         yield (
-            gr.update(value=f"**Audio upload failed:** {exc}", visible=True),
+            gr.update(
+                value=format_status_html("Audio upload failed", str(exc)),
+                visible=True,
+            ),
+            format_conversation_html({}),
             "",
-            "",
-            "",
-            None,
-            None,
+            format_summary_html({}),
+            format_qa_scorecard_html({}),
+            format_report_panel_html(False),
+            *empty_report_downloads(),
         )
         return
 
     yield (
         gr.update(value=processing_message, visible=True),
-        "",
-        "",
-        "",
-        None,
-        None,
+        *empty_analysis_outputs(),
     )
 
+    result = {"audio_path": copied_audio_path}
     try:
-        result = pipeline.invoke({"audio_path": copied_audio_path})
+        for chunk in pipeline.stream({"audio_path": copied_audio_path}):
+            for node_name, update in chunk.items():
+                if isinstance(update, dict):
+                    result.update(update)
+                yield (
+                    gr.update(value=build_progress_status(node_name), visible=True),
+                    *empty_analysis_outputs(),
+                )
+                next_step_status = build_next_step_status(node_name)
+                can_continue = not update.get("error") and not update.get(
+                    "injection_detected"
+                )
+                if next_step_status and can_continue:
+                    yield (
+                        gr.update(value=next_step_status, visible=True),
+                        *empty_analysis_outputs(),
+                    )
     except Exception as exc:
         yield (
-            gr.update(value=f"**Pipeline failed:** {exc}", visible=True),
+            gr.update(
+                value=format_status_html("Pipeline failed", str(exc)),
+                visible=True,
+            ),
+            format_conversation_html({}),
             "",
-            "",
-            "",
-            None,
-            None,
+            format_summary_html({}),
+            format_qa_scorecard_html({}),
+            format_report_panel_html(False),
+            *empty_report_downloads(),
         )
         return
 
     if result.get("error"):
-        error_message = f"**Pipeline failed:** {result['error']}"
         yield (
-            gr.update(value=error_message, visible=True),
+            gr.update(
+                value=format_status_html("Pipeline failed", str(result["error"])),
+                visible=True,
+            ),
+            format_conversation_html({}),
             "",
-            "",
-            "",
-            None,
-            None,
+            format_summary_html({}),
+            format_qa_scorecard_html({}),
+            format_report_panel_html(False),
+            *empty_report_downloads(),
         )
         return
     if result.get("injection_detected"):
         yield (
-            gr.update(value="**Injection attempt detected.** Pipeline stopped.", visible=True),
+            gr.update(
+                value=format_status_html(
+                    "Injection attempt detected",
+                    "Pipeline stopped before summary and QA scoring.",
+                    percent=100,
+                ),
+                visible=True,
+            ),
+            format_conversation_html(result),
             "",
-            "",
-            "",
-            None,
-            None,
+            format_summary_html(result),
+            format_qa_scorecard_html(result),
+            format_report_panel_html(False),
+            *empty_report_downloads(),
         )
         return
 
@@ -296,81 +1580,200 @@ def run_pipeline(audio_path: str):
     summary = result.get("summary") or "No summary was generated."
     report_path = result.get("report_path")
     json_report_path = get_json_report_path(report_path)
-    qa_markdown = format_qa_scorecard(result)
 
     if result.get("supervisor_review_needed"):
         summary = f"{summary}\n\n**Supervisor review needed.**"
+        result = {**result, "summary": summary}
 
     yield (
-        gr.update(value="Processing complete.", visible=True),
+        gr.update(
+            value=format_status_html(
+                "Processing complete",
+                "Transcript, summary, QA scorecard, and reports are ready.",
+                percent=100,
+            ),
+            visible=True,
+        ),
+        format_conversation_html(result),
         transcript,
-        summary,
-        qa_markdown,
-        report_path,
-        json_report_path,
+        format_summary_html(result),
+        format_qa_scorecard_html(result),
+        format_report_panel_html(bool(report_path or json_report_path)),
+        *ready_report_downloads(report_path, json_report_path),
     )
+
+
+theme = gr.themes.Soft(
+    primary_hue="teal",
+    neutral_hue="slate",
+    radius_size="sm",
+    font=[gr.themes.GoogleFont("Inter"), "Arial", "sans-serif"],
+)
 
 
 with gr.Blocks() as app:
-    with gr.Tab("Analyze call"):
-        audio_input = gr.Audio(type="filepath", label="Upload audio")
-        analyze_btn = gr.Button("Analyze")
-        status_output = gr.Markdown(visible=False)
-        transcript_output = gr.Textbox(label="Transcript")
-        summary_output = gr.Markdown(label="Summary")
-        qa_output = gr.Markdown(label="QA Scorecard")
-        pdf_download = gr.File(label="Download PDF")
-        json_download = gr.File(label="Download JSON")
-
-        analyze_btn.click(
-            fn=run_pipeline,
-            inputs=[audio_input],
-            outputs=[
-                status_output,
-                transcript_output,
-                summary_output,
-                qa_output,
-                pdf_download,
-                json_download,
-            ],
+    with gr.Column(elem_classes=["app-shell"]):
+        gr.HTML(
+            """
+            <header class="app-header">
+                <div class="app-brand">
+                    <div class="app-logo">CI</div>
+                    <div>
+                        <p class="app-kicker">Operations Console</p>
+                        <h1>Call Center Intelligence</h1>
+                    </div>
+                </div>
+                <p>
+                    Analyze calls, score quality, generate reports, and monitor
+                    pipeline activity.
+                </p>
+            </header>
+            """
         )
-    with gr.Tab("Observability") as observability_tab:
-        metrics_output = gr.Markdown()
-        audit_log_output = gr.HTML()
-        refresh_observability_btn = gr.Button("Refresh")
-        export_btn = gr.Button("Export Audit Log")
-        csv_download = gr.DownloadButton(label="Download CSV", visible=False)
 
-        refresh_observability_btn.click(
+        with gr.Tab("Analyze Call"):
+            with gr.Row(
+                equal_height=False,
+                elem_id="analysis-layout",
+                elem_classes=["analysis-layout"],
+            ):
+                with gr.Column(scale=4, min_width=300, elem_classes=["input-panel"]):
+                    gr.HTML(
+                        """
+                        <div class="section-title">
+                            <h2>Call Intake</h2>
+                            <p>Upload an audio file, then run the analysis pipeline.</p>
+                        </div>
+                        """
+                    )
+                    audio_input = gr.Audio(type="filepath", label="Audio file")
+                    analyze_btn = gr.Button(
+                        "Analyze Call",
+                        variant="primary",
+                        elem_classes=["analyze-button"],
+                    )
+                    status_output = gr.HTML(visible=False, elem_classes=["status-box"])
+                    with gr.Column():
+                        report_panel_output = gr.HTML(
+                            value=format_report_panel_html(False),
+                        )
+                        with gr.Row(elem_classes=["download-row"]):
+                            pdf_download = gr.DownloadButton(
+                                label="PDF pending",
+                                value=None,
+                                interactive=False,
+                                elem_classes=["report-download"],
+                            )
+                            json_download = gr.DownloadButton(
+                                label="JSON pending",
+                                value=None,
+                                interactive=False,
+                                elem_classes=["report-download"],
+                            )
+
+                with gr.Column(scale=7, min_width=600, elem_classes=["output-panel"]):
+                    gr.HTML(
+                        """
+                        <div class="section-title">
+                            <h2>Analysis Workspace</h2>
+                            <p>
+                                Review transcript, summary, QA scorecard, and generated artifacts.
+                            </p>
+                        </div>
+                        """
+                    )
+                    with gr.Row(elem_classes=["workspace-grid"]):
+                        with gr.Column(elem_classes=["workspace-main"]):
+                            conversation_output = gr.HTML(
+                                value=format_conversation_html({}),
+                                label="Conversation",
+                            )
+                            transcript_output = gr.Textbox(
+                                label="Transcript",
+                                lines=10,
+                                elem_classes=["transcript-box"],
+                            )
+                        with gr.Column(elem_classes=["workspace-side"]):
+                            summary_output = gr.HTML(
+                                value=format_summary_html({}),
+                                label="Summary",
+                            )
+                            qa_output = gr.HTML(
+                                value=format_qa_scorecard_html({}),
+                                label="QA Scorecard",
+                            )
+
+            analyze_btn.click(
+                fn=run_pipeline,
+                inputs=[audio_input],
+                outputs=[
+                    status_output,
+                    conversation_output,
+                    transcript_output,
+                    summary_output,
+                    qa_output,
+                    report_panel_output,
+                    pdf_download,
+                    json_download,
+                ],
+            )
+
+        with gr.Tab("Observability") as observability_tab:
+            with gr.Column(elem_classes=["observability-panel"]):
+                gr.HTML(
+                    """
+                    <div class="section-title">
+                        <h2>Pipeline Observability</h2>
+                        <p>
+                            Track call volume, quality score trends, compliance flags,
+                            and audit events.
+                        </p>
+                    </div>
+                    """
+                )
+                metrics_output = gr.HTML()
+                audit_log_output = gr.HTML()
+                with gr.Row():
+                    refresh_observability_btn = gr.Button(
+                        "Refresh",
+                        elem_classes=["refresh-button"],
+                    )
+                    export_btn = gr.Button(
+                        "Export Audit Log",
+                        elem_classes=["export-button"],
+                    )
+                csv_download = gr.DownloadButton(
+                    label="Download CSV",
+                    visible=False,
+                    elem_classes=["csv-download"],
+                )
+
+            refresh_observability_btn.click(
+                fn=get_observability_display,
+                inputs=None,
+                outputs=[metrics_output, audit_log_output],
+            )
+            export_btn.click(
+                fn=export_audit_log_csv,
+                inputs=None,
+                outputs=[csv_download],
+            )
+
+            observability_tab.select(
+                fn=get_observability_display,
+                inputs=None,
+                outputs=[metrics_output, audit_log_output],
+            )
+
+        app.load(
             fn=get_observability_display,
             inputs=None,
             outputs=[metrics_output, audit_log_output],
-            queue=False,
         )
-        export_btn.click(
-            fn=export_audit_log_csv,
-            inputs=None,
-            outputs=[csv_download],
-            queue=False,
-        )
-
-        observability_tab.select(
-            fn=get_observability_display,
-            inputs=None,
-            outputs=[metrics_output, audit_log_output],
-            queue=False,
-        )
-
-    app.load(
-        fn=get_observability_display,
-        inputs=None,
-        outputs=[metrics_output, audit_log_output],
-        queue=False,
-    )
 
 
 app.queue()
 
 
 if __name__ == "__main__":
-    app.launch()
+    app.launch(theme=theme, css=APP_CSS)

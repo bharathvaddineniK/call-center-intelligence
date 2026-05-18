@@ -57,11 +57,21 @@ def create_qa_result(overall_score: float = 85.0) -> QAResult:
 
 def mock_llm_nodes(monkeypatch, overall_score: float = 85.0):
     """Mock summary and QA scoring calls."""
-    monkeypatch.setattr(nodes, "summarize", lambda transcript: create_summary_result())
     monkeypatch.setattr(
         nodes,
-        "score",
-        lambda transcript, summary: create_qa_result(overall_score=overall_score),
+        "summarize_with_usage",
+        lambda transcript: (
+            create_summary_result(),
+            {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30},
+        ),
+    )
+    monkeypatch.setattr(
+        nodes,
+        "score_with_usage",
+        lambda transcript, summary: (
+            create_qa_result(overall_score=overall_score),
+            {"input_tokens": 30, "output_tokens": 10, "total_tokens": 40},
+        ),
     )
 
 

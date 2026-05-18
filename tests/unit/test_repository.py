@@ -3,12 +3,13 @@ from src.database.repository import (
     get_call_by_id,
     get_recent_audit_logs,
     get_report_by_call_id,
+    get_table_counts,
     save_call,
     save_report,
 )
 from src.services.security.audit_logger import (
+    EVENT_INTAKE_VALIDATED,
     EVENT_PIPELINE_FAILED,
-    EVENT_PIPELINE_STARTED,
     SEVERITY_ERROR,
     SEVERITY_INFO,
     log_event,
@@ -140,7 +141,7 @@ def test_save_report_updates_existing_report_for_call():
 def test_get_recent_audit_logs():
     """Save audit logs and return the most recent entries."""
     log_event(
-        event_type=EVENT_PIPELINE_STARTED,
+        event_type=EVENT_INTAKE_VALIDATED,
         message="Pipeline started",
         severity=SEVERITY_INFO,
     )
@@ -155,3 +156,14 @@ def test_get_recent_audit_logs():
     assert isinstance(audit_logs, list)
     assert len(audit_logs) == 2
     assert audit_logs[0].message == "Pipeline failed"
+
+
+def test_get_table_counts():
+    """Return storage diagnostic row counts."""
+    create_test_call()
+
+    counts = get_table_counts()
+
+    assert counts["calls"] == 1
+    assert counts["reports"] == 0
+    assert counts["audit_logs"] == 0

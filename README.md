@@ -106,6 +106,17 @@ For GPU deployment:
 
 The provided Dockerfile uses `python:3.11-slim` and is CPU-oriented.
 
+## Docker Persistence
+
+Runtime state is stored under `/app/data` in the container, including SQLite observability data,
+reports, uploaded audio copies, and the transcription cache. Mount that directory as a volume when
+running Docker; otherwise, recreating the container starts with a fresh database and observability
+will show zero historical stats.
+
+```bash
+docker run --env-file .env -p 7860:7860 -v call-center-data:/app/data call-center-intelligence
+```
+
 ## Sample Usage / Screenshots
 
 Analyze a call:

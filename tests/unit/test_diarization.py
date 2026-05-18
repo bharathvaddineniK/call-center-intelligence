@@ -62,3 +62,29 @@ def test_speaker_does_not_change_for_short_pause_and_statement():
     current = _segment(3.2, 6.0, "Please continue")
 
     assert _detect_speaker_change(previous, current) is False
+
+
+def test_agent_cue_overrides_alternation():
+    """Keep agent labels for adjacent operator-style questions."""
+
+    segments = [
+        _segment(0.0, 2.0, "911, what are you reporting?"),
+        _segment(2.1, 4.0, "That's right, how may I help you?"),
+    ]
+
+    result = assign_speakers(segments)
+
+    assert result[1]["speaker"] == SPEAKER_00
+
+
+def test_customer_cue_overrides_first_speaker_default():
+    """Label caller-style statements as customer even after agent questions."""
+
+    segments = [
+        _segment(0.0, 2.0, "911, what are you reporting?"),
+        _segment(2.1, 4.0, "I would like for a police officer to give me a call."),
+    ]
+
+    result = assign_speakers(segments)
+
+    assert result[1]["speaker"] == SPEAKER_01

@@ -1,10 +1,12 @@
 """Score call transcripts for quality assurance metrics."""
 
+from langchain_core.callbacks import get_usage_metadata_callback
 from langchain_core.prompts import ChatPromptTemplate
 from langsmith import traceable
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
-from src.agents.llm_factory import get_llm
+from src.agents.llm_factory import get_fallback_llm, get_llm
+from src.agents.retry import is_model_access_error, is_retryable_llm_error
 from src.pipeline_models import QAResult, SummaryResult
 
 SUMMARY_JSON_INDENT = 2
@@ -59,15 +61,31 @@ QA_PROMPT = ChatPromptTemplate.from_messages(
 
 STRUCTURED_LLM = LLM.with_structured_output(QAResult)
 QA_CHAIN = QA_PROMPT | STRUCTURED_LLM
+FALLBACK_QA_CHAIN = None
+LAST_QA_USAGE = {}
 
 
 @traceable
 def score(transcript_text: str, summary: SummaryResult) -> QAResult:
     """Analyze a transcript and return structured QA scores."""
-    result = _invoke_with_retry(QA_CHAIN, _build_score_inputs(transcript_text, summary))
+    result, _usage = score_with_usage(transcript_text, summary)
+    return result
+
+
+@traceable
+def score_with_usage(transcript_text: str, summary: SummaryResult) -> tuple[QAResult, dict]:
+    """Analyze a transcript and return QA scores plus provider token usage."""
+    inputs = _build_score_inputs(transcript_text, summary)
+    try:
+        result, usage = _invoke_with_retry(QA_CHAIN, inputs)
+    except Exception as exc:
+        if not is_model_access_error(exc):
+            raise
+        result, usage = _invoke_with_retry(_get_fallback_qa_chain(), inputs)
+
     result.overall_score = _recompute_overall_score(result)
 
-    return result
+    return result, usage
 
 
 def _build_score_inputs(transcript_text: str, summary: SummaryResult) -> dict:
@@ -76,6 +94,40 @@ def _build_score_inputs(transcript_text: str, summary: SummaryResult) -> dict:
         "transcript": transcript_text,
         "summary": summary.model_dump_json(indent=SUMMARY_JSON_INDENT),
     }
+
+
+def _get_fallback_qa_chain():
+    """Build the fallback QA chain only if the primary model is unavailable."""
+    global FALLBACK_QA_CHAIN
+
+    if FALLBACK_QA_CHAIN is None:
+        fallback_llm = get_fallback_llm(temperature=0)
+        FALLBACK_QA_CHAIN = QA_PROMPT | fallback_llm.with_structured_output(QAResult)
+
+    return FALLBACK_QA_CHAIN
+
+
+def get_last_qa_usage() -> dict:
+    """Return token usage from the most recent QA call."""
+    return LAST_QA_USAGE.copy()
+
+
+def _summarize_usage(usage_metadata: dict) -> dict:
+    """Flatten provider usage metadata across models."""
+    totals = {
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "total_tokens": 0,
+        "models": [],
+        "source": "actual",
+    }
+    for model_name, usage in usage_metadata.items():
+        totals["models"].append(model_name)
+        totals["input_tokens"] += int(usage.get("input_tokens", 0) or 0)
+        totals["output_tokens"] += int(usage.get("output_tokens", 0) or 0)
+        totals["total_tokens"] += int(usage.get("total_tokens", 0) or 0)
+
+    return totals
 
 
 def _recompute_overall_score(result: QAResult) -> float:
@@ -95,7 +147,15 @@ def _recompute_overall_score(result: QAResult) -> float:
         min=RETRY_MIN_WAIT_SECONDS,
         max=RETRY_MAX_WAIT_SECONDS,
     ),
+    retry=retry_if_exception(is_retryable_llm_error),
+    reraise=True,
 )
 def _invoke_with_retry(chain, inputs):
     """Invoke a LangChain chain with retry handling for transient failures."""
-    return chain.invoke(inputs)
+    global LAST_QA_USAGE
+
+    with get_usage_metadata_callback() as callback:
+        result = chain.invoke(inputs)
+
+    LAST_QA_USAGE = _summarize_usage(callback.usage_metadata)
+    return result, LAST_QA_USAGE

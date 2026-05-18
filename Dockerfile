@@ -29,5 +29,6 @@ RUN mkdir -p data/audio data/reports data/cache .cache \
 USER appuser
 
 EXPOSE 7860
+VOLUME ["/app/data"]
 
 CMD ["python", "app.py"]

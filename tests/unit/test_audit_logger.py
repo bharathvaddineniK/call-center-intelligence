@@ -3,8 +3,8 @@ import pytest
 from src.database.models import AuditLog
 from src.database.session import init_db, session_scope
 from src.services.security.audit_logger import (
+    EVENT_INTAKE_VALIDATED,
     EVENT_PIPELINE_FAILED,
-    EVENT_PIPELINE_STARTED,
     SEVERITY_ERROR,
     SEVERITY_INFO,
     log_event,
@@ -16,7 +16,7 @@ def test_log_event_writes_audit_log():
     init_db()
 
     log_event(
-        event_type=EVENT_PIPELINE_STARTED,
+        event_type=EVENT_INTAKE_VALIDATED,
         message="Pipeline started",
         severity=SEVERITY_INFO,
         call_id=123,
@@ -25,7 +25,7 @@ def test_log_event_writes_audit_log():
     with session_scope() as session:
         record = session.query(AuditLog).order_by(AuditLog.id.desc()).first()
 
-        assert record.event_type == EVENT_PIPELINE_STARTED
+        assert record.event_type == EVENT_INTAKE_VALIDATED
         assert record.message == "Pipeline started"
         assert record.severity == SEVERITY_INFO
         assert record.call_id == 123
@@ -61,7 +61,7 @@ def test_log_event_rejects_invalid_severity():
     """Test that unknown severity values are rejected."""
     with pytest.raises(ValueError):
         log_event(
-            event_type=EVENT_PIPELINE_STARTED,
+            event_type=EVENT_INTAKE_VALIDATED,
             message="Invalid severity",
             severity="debug",
         )

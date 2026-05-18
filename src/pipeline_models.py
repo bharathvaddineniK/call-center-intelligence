@@ -23,9 +23,11 @@ class PipelineState(TypedDict):
     call_id: int | None
     report_path: str | None
     error: str | None
+    error_logged: bool | None
     supervisor_review_needed: bool | None
     audit_events: list[dict[str, Any]] | None
     summary_json: str | None
+    token_usage: dict[str, Any] | None
 
 
 class TranscriptionSegment(BaseModel):
