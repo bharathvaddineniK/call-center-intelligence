@@ -346,6 +346,7 @@ def report_node(state: PipelineState) -> dict:
             summary=summary_text,
             compliance_flag=compliance_flag,
             pdf_path=str(report_path),
+            report_json=json_str,
         )
         cleanup_old_files(
             str(config.AUDIO_DIR),

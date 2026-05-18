@@ -159,6 +159,7 @@ def save_report(
     summary: str,
     compliance_flag: bool,
     pdf_path: str,
+    report_json: str | None = None,
 ) -> int:
     """Save or update a report record and return the report id."""
 
@@ -178,6 +179,7 @@ def save_report(
         report.summary = summary
         report.compliance_flag = compliance_flag
         report.pdf_path = pdf_path
+        report.report_json = report_json
 
         session.flush()
         session.refresh(report)

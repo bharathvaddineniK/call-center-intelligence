@@ -61,10 +61,14 @@ def test_save_report_returns_id():
         summary="The agent helped the caller.",
         compliance_flag=True,
         pdf_path="reports/call.pdf",
+        report_json='{"summary": "The agent helped the caller."}',
     )
 
     assert isinstance(report_id, int)
     assert report_id > 0
+
+    report = get_report_by_call_id(call_id)
+    assert report.report_json == '{"summary": "The agent helped the caller."}'
 
 
 def test_get_call_by_id_returns_correct_call():
@@ -224,6 +228,7 @@ def test_save_report_updates_existing_report_for_call():
         summary="The agent helped the caller.",
         compliance_flag=True,
         pdf_path="reports/old-call.pdf",
+        report_json='{"version": 1}',
     )
     second_report_id = save_report(
         call_id=call_id,
@@ -236,6 +241,7 @@ def test_save_report_updates_existing_report_for_call():
         summary="The updated report summary.",
         compliance_flag=False,
         pdf_path="reports/new-call.pdf",
+        report_json='{"version": 2}',
     )
 
     report = get_report_by_call_id(call_id)
@@ -244,6 +250,7 @@ def test_save_report_updates_existing_report_for_call():
     assert report.overall_score == 70.0
     assert report.summary == "The updated report summary."
     assert report.pdf_path == "reports/new-call.pdf"
+    assert report.report_json == '{"version": 2}'
 
 
 def test_get_recent_audit_logs():

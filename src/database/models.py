@@ -60,6 +60,7 @@ class Report(Base):
     summary: Mapped[str] = mapped_column(Text)
     compliance_flag: Mapped[bool] = mapped_column(Boolean)
     pdf_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    report_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         default=lambda: datetime.now(UTC)
