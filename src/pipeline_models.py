@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field
 
 class PipelineState(TypedDict):
     audio_path: str
+    caller_id: str | None
+    department: str | None
     file_hash: str | None
     duration: float | None
     transcript: str | None

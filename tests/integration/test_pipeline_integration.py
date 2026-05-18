@@ -155,6 +155,8 @@ def test_report_node_success(monkeypatch, tmp_path):
             "overall_score": 85.0,
             "compliance_flag": True,
             "summary_json": summary.model_dump_json(),
+            "caller_id": "caller@example.com",
+            "department": "Emergency Dispatch",
         }
     )
 
@@ -164,6 +166,8 @@ def test_report_node_success(monkeypatch, tmp_path):
 
     call = get_call_by_id(result["call_id"])
     assert call.status == CALL_STATUS_COMPLETED
+    assert call.caller_id == "[REDACTED_EMAIL]"
+    assert call.department == "Emergency Dispatch"
 
 
 def test_pipeline_valid_end_to_end(monkeypatch, tmp_path):
@@ -176,12 +180,22 @@ def test_pipeline_valid_end_to_end(monkeypatch, tmp_path):
     )
 
     graph = get_graph()
-    result = graph.invoke({"audio_path": "data/audio/call_114.mp3"})
+    result = graph.invoke(
+        {
+            "audio_path": "data/audio/call_114.mp3",
+            "caller_id": "caller@example.com",
+            "department": "Billing",
+        }
+    )
 
     assert result["call_id"] > 0
     assert result["call_status"] == CALL_STATUS_COMPLETED
     assert result["report_path"]
     assert "error" not in result or result["error"] is None
+
+    call = get_call_by_id(result["call_id"])
+    assert call.caller_id == "[REDACTED_EMAIL]"
+    assert call.department == "Billing"
 
 
 def test_pipeline_injection_blocked(monkeypatch):
@@ -193,7 +207,13 @@ def test_pipeline_injection_blocked(monkeypatch):
     )
 
     graph = get_graph()
-    result = graph.invoke({"audio_path": "data/audio/call_114.mp3"})
+    result = graph.invoke(
+        {
+            "audio_path": "data/audio/call_114.mp3",
+            "caller_id": "555-123-4567",
+            "department": "Emergency Dispatch",
+        }
+    )
 
     assert result["injection_detected"] is True
     assert "instruction override" in result["injection_patterns"]
@@ -203,12 +223,20 @@ def test_pipeline_injection_blocked(monkeypatch):
 
     call = get_call_by_id(result["call_id"])
     assert call.status == CALL_STATUS_BLOCKED
+    assert call.caller_id == "[REDACTED_PHONE]"
+    assert call.department == "Emergency Dispatch"
 
 
 def test_pipeline_invalid_audio():
     """Stop the pipeline at intake for an invalid audio path."""
     graph = get_graph()
-    result = graph.invoke({"audio_path": "fake/path.wav"})
+    result = graph.invoke(
+        {
+            "audio_path": "fake/path.wav",
+            "caller_id": "555-123-4567",
+            "department": "Support",
+        }
+    )
 
     assert result["error"] == "File not found"
     assert result["call_status"] == CALL_STATUS_FAILED
@@ -217,3 +245,5 @@ def test_pipeline_invalid_audio():
 
     call = get_call_by_id(result["call_id"])
     assert call.status == CALL_STATUS_FAILED
+    assert call.caller_id == "[REDACTED_PHONE]"
+    assert call.department == "Support"

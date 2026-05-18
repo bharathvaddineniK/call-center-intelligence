@@ -1534,9 +1534,24 @@ def get_observability_display():
     return f"{metrics_html}{storage_html}{langsmith_html}", format_audit_log_html(audit_rows)
 
 
-def run_pipeline(audio_path: str):
+def normalize_optional_text(value: str | None) -> str | None:
+    """Return stripped optional form text, or None when blank."""
+    if value is None:
+        return None
+
+    value = value.strip()
+    return value or None
+
+
+def run_pipeline(
+    audio_path: str,
+    caller_id: str | None = None,
+    department: str | None = None,
+):
     """Run the call analysis pipeline for a Gradio-uploaded audio file."""
     started_at = time.perf_counter()
+    caller_id = normalize_optional_text(caller_id)
+    department = normalize_optional_text(department)
 
     if not audio_path:
         yield (
@@ -1579,9 +1594,14 @@ def run_pipeline(audio_path: str):
         *empty_analysis_outputs(),
     )
 
-    result = {"audio_path": copied_audio_path}
+    pipeline_input = {
+        "audio_path": copied_audio_path,
+        "caller_id": caller_id,
+        "department": department,
+    }
+    result = dict(pipeline_input)
     try:
-        for chunk in pipeline.stream({"audio_path": copied_audio_path}):
+        for chunk in pipeline.stream(pipeline_input):
             for node_name, update in chunk.items():
                 if isinstance(update, dict):
                     result.update(update)
@@ -1720,6 +1740,16 @@ with gr.Blocks() as app:
                         """
                     )
                     audio_input = gr.Audio(type="filepath", label="Audio file")
+                    caller_id_input = gr.Textbox(
+                        label="Caller ID (optional)",
+                        placeholder="Caller reference, phone, or email",
+                        lines=1,
+                    )
+                    department_input = gr.Textbox(
+                        label="Department (optional)",
+                        placeholder="Support, emergency dispatch, billing...",
+                        lines=1,
+                    )
                     analyze_btn = gr.Button(
                         "Analyze Call",
                         variant="primary",
@@ -1778,7 +1808,7 @@ with gr.Blocks() as app:
 
             analyze_btn.click(
                 fn=run_pipeline,
-                inputs=[audio_input],
+                inputs=[audio_input, caller_id_input, department_input],
                 outputs=[
                     status_output,
                     conversation_output,

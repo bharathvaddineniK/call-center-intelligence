@@ -35,6 +35,8 @@ def save_call(
     status: str = CALL_STATUS_COMPLETED,
     segments: dict | None = None,
     confidence: float | None = None,
+    caller_id: str | None = None,
+    department: str | None = None,
 ) -> int:
     """Save a call record and return the new call id."""
     _validate_call_status(status)
@@ -51,6 +53,8 @@ def save_call(
         status=status,
         segments=segments,
         confidence=confidence,
+        caller_id=caller_id,
+        department=department,
     )
 
     with session_scope() as session:
@@ -71,6 +75,8 @@ def save_failed_call(
     speaker_count: int | None = None,
     segments: dict | None = None,
     confidence: float | None = None,
+    caller_id: str | None = None,
+    department: str | None = None,
 ) -> int:
     """Persist a minimal call row for failed or blocked pipeline runs."""
     _validate_call_status(status)
@@ -79,6 +85,11 @@ def save_failed_call(
 
     if existing_call is not None:
         update_call_status(existing_call.id, status)
+        update_call_metadata(
+            existing_call.id,
+            caller_id=caller_id,
+            department=department,
+        )
         return existing_call.id
 
     return save_call(
@@ -93,6 +104,8 @@ def save_failed_call(
         status=status,
         segments=segments,
         confidence=confidence,
+        caller_id=caller_id,
+        department=department,
     )
 
 
@@ -110,6 +123,22 @@ def update_call_status(call_id: int, status: str) -> None:
         call = session.query(Call).filter(Call.id == call_id).first()
         if call is not None:
             call.status = status
+
+
+def update_call_metadata(
+    call_id: int,
+    *,
+    caller_id: str | None = None,
+    department: str | None = None,
+) -> None:
+    """Update optional caller metadata for an existing call record."""
+    with session_scope() as session:
+        call = session.query(Call).filter(Call.id == call_id).first()
+        if call is None:
+            return
+
+        call.caller_id = caller_id
+        call.department = department
 
 
 def _validate_call_status(status: str) -> None:

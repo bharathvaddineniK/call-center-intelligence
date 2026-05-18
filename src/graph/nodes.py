@@ -15,6 +15,7 @@ from src.database.repository import (
     save_call,
     save_failed_call,
     save_report,
+    update_call_metadata,
     update_call_status,
 )
 from src.pipeline_models import PipelineState, SummaryResult
@@ -40,6 +41,21 @@ from src.services.security.audit_logger import (
 )
 from src.services.security.injection_detector import get_matched_patterns
 from src.services.security.pii_redactor import redact_pii
+
+
+def _redact_metadata(state: PipelineState) -> tuple[str | None, str | None]:
+    """Return caller metadata after applying the same PII redaction policy."""
+    caller_id = _redact_metadata_value(state.get("caller_id"))
+    department = _redact_metadata_value(state.get("department"))
+    return caller_id, department
+
+
+def _redact_metadata_value(value: str | None) -> str | None:
+    if not value:
+        return None
+
+    redacted_value, _ = redact_pii(value)
+    return redacted_value
 
 
 def intake_node(state: PipelineState) -> dict:
@@ -259,6 +275,7 @@ def report_node(state: PipelineState) -> dict:
             if state.get("supervisor_review_needed")
             else CALL_STATUS_COMPLETED
         )
+        caller_id, department = _redact_metadata(state)
 
         audio_path = state["audio_path"]
         filename = Path(audio_path).name
@@ -267,6 +284,11 @@ def report_node(state: PipelineState) -> dict:
         if existing_call:
             call_id = existing_call.id
             update_call_status(call_id, call_status)
+            update_call_metadata(
+                call_id,
+                caller_id=caller_id,
+                department=department,
+            )
         else:
             call_id = save_call(
                 filename=filename,
@@ -280,6 +302,8 @@ def report_node(state: PipelineState) -> dict:
                 status=call_status,
                 segments=segments,
                 confidence=confidence,
+                caller_id=caller_id,
+                department=department,
             )
 
         summary = SummaryResult.model_validate_json(summary_json)
@@ -361,6 +385,7 @@ def error_node(state: PipelineState) -> dict:
         if call_status == CALL_STATUS_BLOCKED
         else "Pipeline failed"
     )
+    caller_id, department = _redact_metadata(state)
     call_id = state.get("call_id") or save_failed_call(
         audio_path=state.get("audio_path"),
         file_hash=state.get("file_hash"),
@@ -371,6 +396,8 @@ def error_node(state: PipelineState) -> dict:
         speaker_count=state.get("speaker_count"),
         segments=state.get("segments"),
         confidence=state.get("confidence"),
+        caller_id=caller_id,
+        department=department,
     )
 
     if not state.get("error_logged"):

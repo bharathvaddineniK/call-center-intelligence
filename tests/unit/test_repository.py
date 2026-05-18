@@ -13,6 +13,7 @@ from src.database.repository import (
     save_call,
     save_failed_call,
     save_report,
+    update_call_metadata,
     update_call_status,
 )
 from src.services.security.audit_logger import (
@@ -76,6 +77,26 @@ def test_get_call_by_id_returns_correct_call():
     assert call.status == CALL_STATUS_COMPLETED
 
 
+def test_save_call_persists_optional_metadata():
+    """Save optional caller metadata on a completed call."""
+    call_id = save_call(
+        filename="metadata-call.mp3",
+        file_hash="metadata-hash",
+        duration=60.0,
+        transcription="Agent: Hello. Caller: I need help.",
+        speaker_count=2,
+        sentiment="neutral",
+        call_purpose="support",
+        caller_id="[REDACTED_EMAIL]",
+        department="Support",
+    )
+
+    call = get_call_by_id(call_id)
+
+    assert call.caller_id == "[REDACTED_EMAIL]"
+    assert call.department == "Support"
+
+
 def test_save_call_accepts_status():
     """Save a call with an explicit status."""
     call_id = create_test_call(filename="flagged-call.mp3", file_hash="hash-flagged")
@@ -101,6 +122,39 @@ def test_save_failed_call_persists_minimal_failed_row():
     assert call.status == CALL_STATUS_FAILED
     assert call.transcription == ""
     assert call.agent_behavior == "File not found"
+
+
+def test_save_failed_call_persists_optional_metadata():
+    """Persist redacted metadata on failed or blocked call rows."""
+    call_id = save_failed_call(
+        audio_path="fake/path.wav",
+        file_hash=None,
+        error="File not found",
+        status=CALL_STATUS_FAILED,
+        caller_id="[REDACTED_PHONE]",
+        department="Dispatch",
+    )
+
+    call = get_call_by_id(call_id)
+
+    assert call.caller_id == "[REDACTED_PHONE]"
+    assert call.department == "Dispatch"
+
+
+def test_update_call_metadata():
+    """Update caller metadata for an existing call row."""
+    call_id = create_test_call(filename="update-metadata.mp3", file_hash="metadata-update")
+
+    update_call_metadata(
+        call_id,
+        caller_id="[REDACTED_EMAIL]",
+        department="Emergency Dispatch",
+    )
+
+    call = get_call_by_id(call_id)
+
+    assert call.caller_id == "[REDACTED_EMAIL]"
+    assert call.department == "Emergency Dispatch"
 
 
 def test_get_call_status_counts():
