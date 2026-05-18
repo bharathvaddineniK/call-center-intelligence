@@ -10,8 +10,15 @@ from zoneinfo import ZoneInfo
 import gradio as gr
 
 import config
+from src.database.models import (
+    CALL_STATUS_BLOCKED,
+    CALL_STATUS_COMPLETED,
+    CALL_STATUS_FAILED,
+    CALL_STATUS_FLAGGED,
+)
 from src.database.repository import (
     get_all_calls,
+    get_call_status_counts,
     get_recent_audit_logs,
     get_report_by_call_id,
     get_table_counts,
@@ -1302,6 +1309,7 @@ def get_observability_data():
 
     try:
         calls = get_all_calls(limit=500)
+        status_counts = get_call_status_counts()
         reports = [get_report_by_call_id(call.id) for call in calls]
         completed_reports = [report for report in reports if report is not None]
     except Exception as exc:
@@ -1315,18 +1323,25 @@ def get_observability_data():
             audit_rows,
         )
 
-    total_calls = len(calls)
-    successful_calls = len(completed_reports)
+    total_calls = sum(status_counts.values())
+    successful_calls = status_counts.get(CALL_STATUS_COMPLETED, 0) + status_counts.get(
+        CALL_STATUS_FLAGGED,
+        0,
+    )
     success_rate = (successful_calls / total_calls * 100) if total_calls else 0
     average_qa_score = (
-        sum(report.overall_score for report in completed_reports) / successful_calls
-        if successful_calls
+        sum(report.overall_score for report in completed_reports) / len(completed_reports)
+        if completed_reports
         else 0
     )
     compliance_flags = sum(1 for report in completed_reports if report.compliance_flag)
 
     metrics_html = format_metrics_html(
         total_calls=total_calls,
+        completed_calls=status_counts.get(CALL_STATUS_COMPLETED, 0),
+        failed_calls=status_counts.get(CALL_STATUS_FAILED, 0),
+        blocked_calls=status_counts.get(CALL_STATUS_BLOCKED, 0),
+        flagged_calls=status_counts.get(CALL_STATUS_FLAGGED, 0),
         success_rate=success_rate,
         average_qa_score=average_qa_score,
         compliance_flags=compliance_flags,
@@ -1337,6 +1352,10 @@ def get_observability_data():
 
 def format_metrics_html(
     total_calls: int,
+    completed_calls: int,
+    failed_calls: int,
+    blocked_calls: int,
+    flagged_calls: int,
     success_rate: float,
     average_qa_score: float,
     compliance_flags: int,
@@ -1344,6 +1363,10 @@ def format_metrics_html(
     """Format high-level observability metrics as dashboard cards."""
     metrics = [
         ("Total Calls", str(total_calls)),
+        ("Completed", str(completed_calls)),
+        ("Failed", str(failed_calls)),
+        ("Blocked", str(blocked_calls)),
+        ("Flagged", str(flagged_calls)),
         ("Success Rate", f"{success_rate:.1f}%"),
         ("Average QA Score", f"{average_qa_score:.1f}"),
         ("Compliance Flags", str(compliance_flags)),

@@ -1,6 +1,8 @@
 import hashlib
 from pathlib import Path
 
+from sqlalchemy import func
+
 from src.database.models import (
     CALL_STATUS_COMPLETED,
     CALL_STATUSES,
@@ -209,3 +211,10 @@ def get_table_counts() -> dict[str, int]:
             "reports": session.query(Report).count(),
             "audit_logs": session.query(AuditLog).count(),
         }
+
+
+def get_call_status_counts() -> dict[str, int]:
+    """Return count of calls grouped by status."""
+    with session_scope() as session:
+        rows = session.query(Call.status, func.count(Call.id)).group_by(Call.status).all()
+        return {status: count for status, count in rows}

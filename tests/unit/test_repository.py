@@ -6,6 +6,7 @@ from src.database.models import (
 from src.database.repository import (
     get_all_calls,
     get_call_by_id,
+    get_call_status_counts,
     get_recent_audit_logs,
     get_report_by_call_id,
     get_table_counts,
@@ -100,6 +101,24 @@ def test_save_failed_call_persists_minimal_failed_row():
     assert call.status == CALL_STATUS_FAILED
     assert call.transcription == ""
     assert call.agent_behavior == "File not found"
+
+
+def test_get_call_status_counts():
+    """Return grouped call counts by status."""
+    create_test_call(filename="completed-call.mp3", file_hash="status-completed")
+    failed_call_id = save_failed_call(
+        audio_path="failed/path.wav",
+        file_hash=None,
+        error="File not found",
+        status=CALL_STATUS_FAILED,
+    )
+    update_call_status(failed_call_id, CALL_STATUS_FLAGGED)
+
+    counts = get_call_status_counts()
+
+    assert counts[CALL_STATUS_COMPLETED] == 1
+    assert counts[CALL_STATUS_FLAGGED] == 1
+    assert CALL_STATUS_FAILED not in counts
 
 
 def test_get_all_calls_returns_list():
