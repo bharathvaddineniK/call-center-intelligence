@@ -1,4 +1,5 @@
 import csv
+import json
 import shutil
 import time
 from datetime import UTC
@@ -18,6 +19,7 @@ from src.database.models import (
 )
 from src.database.repository import (
     get_all_calls,
+    get_call_by_id,
     get_call_status_counts,
     get_recent_audit_logs,
     get_report_by_call_id,
@@ -254,6 +256,59 @@ APP_CSS = """
     background: #eef5f2 !important;
     border-color: #bfd9d2 !important;
     color: var(--brand-dark) !important;
+}
+
+.history-action,
+.history-action button {
+    background: var(--brand) !important;
+    border-color: var(--brand) !important;
+    color: white !important;
+}
+
+.history-action:hover,
+.history-action button:hover {
+    background: var(--brand-dark) !important;
+}
+
+.history-summary-panel {
+    display: grid;
+    gap: 8px;
+    border: 1px solid #dfe7ef;
+    border-radius: 8px;
+    padding: 12px;
+    background: #ffffff;
+}
+
+.history-stat,
+.history-latest {
+    display: grid;
+    gap: 2px;
+}
+
+.history-stat span,
+.history-latest span {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+}
+
+.history-stat strong,
+.history-latest strong {
+    color: var(--ink);
+    font-size: 16px;
+}
+
+.history-latest small {
+    color: var(--muted);
+}
+
+.history-radio label {
+    border-radius: 7px !important;
+}
+
+.history-radio .wrap {
+    gap: 6px !important;
 }
 
 .status-box {
@@ -912,6 +967,8 @@ def ready_report_downloads(
     json_report_path: str | None,
 ) -> tuple:
     """Return report download controls with generated files when available."""
+    report_path = resolve_download_path(report_path)
+    json_report_path = resolve_download_path(json_report_path)
     return (
         gr.update(
             value=report_path,
@@ -924,6 +981,22 @@ def ready_report_downloads(
             interactive=bool(json_report_path),
         ),
     )
+
+
+def resolve_download_path(path: str | None) -> str | None:
+    """Return an existing report path, allowing for host/container path changes."""
+    if not path:
+        return None
+
+    candidate = Path(path)
+    if candidate.exists():
+        return str(candidate)
+
+    mounted_candidate = config.REPORTS_DIR / candidate.name
+    if mounted_candidate.exists():
+        return str(mounted_candidate)
+
+    return None
 
 
 def format_report_panel_html(ready: bool = False) -> str:
@@ -1274,11 +1347,202 @@ def format_conversation_html(result: dict) -> str:
 
 def get_json_report_path(report_path: str | None):
     """Return the generated JSON report path that matches the PDF report."""
+    report_path = resolve_download_path(report_path)
     if not report_path:
         return None
 
     json_path = Path(report_path).with_suffix(".json")
-    return str(json_path) if json_path.exists() else None
+    return resolve_download_path(str(json_path))
+
+
+def get_mp3_history_records() -> list[tuple]:
+    """Return MP3 call history records from the database."""
+    try:
+        calls = get_all_calls(limit=100)
+    except Exception:
+        return []
+
+    records = []
+    for call in calls:
+        if Path(call.filename).suffix.lower() != ".mp3":
+            continue
+
+        try:
+            report = get_report_by_call_id(call.id)
+        except Exception:
+            report = None
+
+        records.append((call, report))
+
+    return records
+
+
+def load_call_history_summary():
+    """Return a compact status summary for MP3 history."""
+    records = get_mp3_history_records()
+    if not records:
+        return "<div class='placeholder-panel'>No analyzed MP3 calls yet.</div>"
+
+    completed_count = sum(1 for call, _report in records if call.status == "completed")
+    latest_call, latest_report = records[0]
+    latest_score = f"{latest_report.overall_score:.1f}" if latest_report else "N/A"
+
+    return (
+        "<div class='history-summary-panel'>"
+        "<div class='history-stat'>"
+        "<span>Total MP3 calls</span>"
+        f"<strong>{len(records)}</strong>"
+        "</div>"
+        "<div class='history-stat'>"
+        "<span>Completed</span>"
+        f"<strong>{completed_count}</strong>"
+        "</div>"
+        "<div class='history-latest'>"
+        "<span>Latest</span>"
+        f"<strong>{escape(latest_call.filename)}</strong>"
+        f"<small>{escape(format_audit_timestamp(latest_call.created_at))} | "
+        f"QA {escape(latest_score)}</small>"
+        "</div>"
+        "</div>"
+    )
+
+
+def load_history_choices():
+    """Return dropdown choices for MP3 history detail loading."""
+    choices = [
+        format_history_choice(call, report)
+        for call, report in get_mp3_history_records()
+    ]
+    return gr.update(choices=choices, value=choices[0] if choices else None)
+
+
+def refresh_history():
+    """Refresh the history summary and selected-call choices together."""
+    return load_call_history_summary(), load_history_choices()
+
+
+def load_call_detail(selected_call: str | int | None):
+    """Load one history call from DB and return Analyze-style detail outputs."""
+    try:
+        call_id = parse_history_choice_id(selected_call)
+        if call_id is None:
+            return empty_history_detail_outputs()
+
+        call = get_call_by_id(call_id)
+        if call is None:
+            return empty_history_detail_outputs()
+
+        report = get_report_by_call_id(call.id)
+        result = build_history_result(call, report)
+        report_path = resolve_download_path(report.pdf_path if report else None)
+        json_report_path = get_history_json_report_path(call.id, report)
+    except Exception:
+        return empty_history_detail_outputs()
+
+    return (
+        format_conversation_html(result),
+        call.transcription or "",
+        format_summary_html(result),
+        format_qa_scorecard_html(result),
+        format_report_panel_html(bool(report_path or json_report_path)),
+        *ready_report_downloads(report_path, json_report_path),
+    )
+
+
+def empty_history_detail_outputs() -> tuple:
+    """Return empty Analyze-style outputs for history detail panels."""
+    return (
+        format_conversation_html({}),
+        "",
+        format_summary_html({}),
+        format_qa_scorecard_html({}),
+        format_report_panel_html(False),
+        *empty_report_downloads(),
+    )
+
+
+def format_history_choice(call, report) -> str:
+    """Return a readable radio choice with the DB id embedded up front."""
+    score = f"{report.overall_score:.1f}" if report else "N/A"
+    return (
+        f"{call.id} - {call.filename} | "
+        f"{call.created_at.strftime('%Y-%m-%d %H:%M')} | "
+        f"{call.status} | QA {score}"
+    )
+
+
+def parse_history_choice_id(selected_call: str | int | None) -> int | None:
+    """Extract a call id from the selected history radio value."""
+    if selected_call is None:
+        return None
+
+    if isinstance(selected_call, int):
+        return selected_call
+
+    raw_value = str(selected_call).strip().split(" ", 1)[0]
+    return int(raw_value) if raw_value.isdigit() else None
+
+
+def build_history_result(call, report) -> dict:
+    """Reconstruct the result dict used by Analyze Call display helpers."""
+    report_data = parse_report_json(report.report_json if report else None)
+    summary_data = report_data.get("summary", {})
+
+    return {
+        "transcript": call.transcription,
+        "segments": call.segments,
+        "confidence": call.confidence,
+        "summary": report.summary if report else None,
+        "sentiment": call.sentiment,
+        "call_purpose": call.call_purpose,
+        "agent_behavior": summary_data.get("agent_behavior") or call.agent_behavior,
+        "compliance_flag": report.compliance_flag if report else None,
+        "overall_score": report.overall_score if report else None,
+        "qa_scores": build_history_qa_scores(report),
+    }
+
+
+def build_history_qa_scores(report) -> dict:
+    """Return QA scores in the same shape produced by the pipeline."""
+    if report is None:
+        return {}
+
+    return {
+        "empathy_score": report.empathy_score,
+        "resolution_score": report.resolution_score,
+        "compliance_score": report.compliance_score,
+        "communication_score": report.communication_score,
+        "professionalism_score": report.professionalism_score,
+    }
+
+
+def parse_report_json(report_json: str | None) -> dict:
+    """Parse persisted report JSON, tolerating older rows with no JSON."""
+    if not report_json:
+        return {}
+
+    try:
+        return json.loads(report_json)
+    except json.JSONDecodeError:
+        return {}
+
+
+def get_history_json_report_path(call_id: int, report) -> str | None:
+    """Return a downloadable JSON report path for a persisted report."""
+    if report is None:
+        return None
+
+    existing_path = get_json_report_path(report.pdf_path)
+    if existing_path:
+        return existing_path
+
+    if not report.report_json:
+        return None
+
+    config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    json_path = config.REPORTS_DIR / f"call_{call_id}_history_report.json"
+    json_path.write_text(report.report_json)
+    return str(json_path)
 
 
 def get_observability_data():
@@ -1821,6 +2085,123 @@ with gr.Blocks() as app:
                 ],
             )
 
+        with gr.Tab("MP3 History") as history_tab:
+            with gr.Row(equal_height=False, elem_classes=["analysis-layout"]):
+                with gr.Column(scale=4, min_width=360, elem_classes=["input-panel"]):
+                    gr.HTML(
+                        """
+                        <div class="section-title">
+                            <h2>Call History</h2>
+                            <p>Select an analyzed MP3 call to review stored results.</p>
+                        </div>
+                        """
+                    )
+                    refresh_history_btn = gr.Button(
+                        "Refresh History",
+                        elem_classes=["refresh-button"],
+                    )
+                    history_call_selector = gr.Radio(
+                        label="Analyzed MP3 calls",
+                        choices=[],
+                        value=None,
+                        interactive=True,
+                        elem_classes=["history-radio"],
+                    )
+                    load_history_detail_btn = gr.Button(
+                        "View Analysis",
+                        elem_classes=["history-action"],
+                    )
+                    history_overview_output = gr.HTML(
+                        value=load_call_history_summary(),
+                    )
+
+                with gr.Column(scale=8, min_width=700, elem_classes=["output-panel"]):
+                    gr.HTML(
+                        """
+                        <div class="section-title">
+                            <h2>Stored Analysis</h2>
+                            <p>Review transcript, summary, QA scorecard, and reports from DB.</p>
+                        </div>
+                        """
+                    )
+                    with gr.Row(elem_classes=["workspace-grid"]):
+                        with gr.Column(elem_classes=["workspace-main"]):
+                            history_conversation_output = gr.HTML(
+                                value=format_conversation_html({}),
+                                label="Conversation",
+                            )
+                            history_transcript_output = gr.Textbox(
+                                label="Transcript",
+                                lines=10,
+                                elem_classes=["transcript-box"],
+                            )
+                        with gr.Column(elem_classes=["workspace-side"]):
+                            history_summary_output = gr.HTML(
+                                value=format_summary_html({}),
+                                label="Summary",
+                            )
+                            history_qa_output = gr.HTML(
+                                value=format_qa_scorecard_html({}),
+                                label="QA Scorecard",
+                            )
+                            history_report_panel_output = gr.HTML(
+                                value=format_report_panel_html(False),
+                            )
+                            with gr.Row(elem_classes=["download-row"]):
+                                history_pdf_download = gr.DownloadButton(
+                                    label="PDF pending",
+                                    value=None,
+                                    interactive=False,
+                                    elem_classes=["report-download"],
+                                )
+                                history_json_download = gr.DownloadButton(
+                                    label="JSON pending",
+                                    value=None,
+                                    interactive=False,
+                                    elem_classes=["report-download"],
+                                )
+
+            refresh_history_btn.click(
+                fn=refresh_history,
+                inputs=None,
+                outputs=[history_overview_output, history_call_selector],
+                queue=False,
+            )
+            history_call_selector.change(
+                fn=load_call_detail,
+                inputs=[history_call_selector],
+                outputs=[
+                    history_conversation_output,
+                    history_transcript_output,
+                    history_summary_output,
+                    history_qa_output,
+                    history_report_panel_output,
+                    history_pdf_download,
+                    history_json_download,
+                ],
+                queue=False,
+            )
+            load_history_detail_btn.click(
+                fn=load_call_detail,
+                inputs=[history_call_selector],
+                outputs=[
+                    history_conversation_output,
+                    history_transcript_output,
+                    history_summary_output,
+                    history_qa_output,
+                    history_report_panel_output,
+                    history_pdf_download,
+                    history_json_download,
+                ],
+                queue=False,
+            )
+            history_tab.select(
+                fn=refresh_history,
+                inputs=None,
+                outputs=[history_overview_output, history_call_selector],
+                queue=False,
+            )
+
         with gr.Tab("Observability") as observability_tab:
             with gr.Column(elem_classes=["observability-panel"]):
                 gr.HTML(
@@ -1855,24 +2236,20 @@ with gr.Blocks() as app:
                 fn=get_observability_display,
                 inputs=None,
                 outputs=[metrics_output, audit_log_output],
+                queue=False,
             )
             export_btn.click(
                 fn=export_audit_log_csv,
                 inputs=None,
                 outputs=[csv_download],
+                queue=False,
             )
-
             observability_tab.select(
                 fn=get_observability_display,
                 inputs=None,
                 outputs=[metrics_output, audit_log_output],
+                queue=False,
             )
-
-        app.load(
-            fn=get_observability_display,
-            inputs=None,
-            outputs=[metrics_output, audit_log_output],
-        )
 
 
 app.queue()
