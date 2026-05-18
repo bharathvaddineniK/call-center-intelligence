@@ -3,6 +3,17 @@ from datetime import UTC, datetime
 from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
+CALL_STATUS_BLOCKED = "blocked"
+CALL_STATUS_COMPLETED = "completed"
+CALL_STATUS_FAILED = "failed"
+CALL_STATUS_FLAGGED = "flagged"
+CALL_STATUSES = {
+    CALL_STATUS_BLOCKED,
+    CALL_STATUS_COMPLETED,
+    CALL_STATUS_FAILED,
+    CALL_STATUS_FLAGGED,
+}
+
 
 class Base(DeclarativeBase):
     pass
@@ -20,6 +31,11 @@ class Call(Base):
     sentiment: Mapped[str] = mapped_column(String(20))
     call_purpose: Mapped[str | None] = mapped_column(String(500), nullable=True)
     agent_behavior: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    status: Mapped[str] = mapped_column(
+        String(20),
+        default=CALL_STATUS_COMPLETED,
+        server_default=CALL_STATUS_COMPLETED,
+    )
     segments: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

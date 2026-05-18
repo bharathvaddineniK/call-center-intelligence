@@ -53,6 +53,7 @@ INJECTION_PATTERNS = [
     (r"\bset\s+(the\s+)?score\s+to\s+100\b", "score manipulation"),
     (r"\bignore\s+(the\s+)?(lapses|mistakes|poor\s+quality|violations)\b", "score manipulation"),
     (r"\brate\s+(this\s+)?(call\s+)?(as\s+)?perfect\b", "score manipulation"),
+    (r"\bmark\s+(this\s+)?(call\s+)?(as\s+)?perfect\b", "score manipulation"),
 
     # data exfiltration
     (r"\brepeat\s+everything\b", "data exfiltration"),
@@ -77,8 +78,9 @@ def get_matched_patterns(text: str) -> list[str]:
     if text is None:
         return []
 
-    return [
+    matches = [
         label
         for pattern, label in INJECTION_PATTERNS
         if re.search(pattern, text, flags=re.IGNORECASE)
     ]
+    return list(dict.fromkeys(matches))

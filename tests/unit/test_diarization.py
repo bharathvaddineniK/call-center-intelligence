@@ -33,6 +33,65 @@ def test_first_speaker_is_agent():
     assert result[0]["speaker"] == SPEAKER_00
 
 
+def test_agent_opening_pattern_sets_first_speaker():
+    """Recognize support-style greetings as agent openings."""
+
+    segments = [
+        _segment(
+            0.0,
+            3.0,
+            "Thank you for calling Technical Support. This is Alex, how may I help?",
+        ),
+        _segment(3.4, 6.0, "I am having trouble with my account."),
+    ]
+
+    result = assign_speakers(segments)
+
+    assert result[0]["speaker"] == SPEAKER_00
+    assert result[1]["speaker"] == SPEAKER_01
+
+
+def test_customer_opening_still_sets_first_speaker():
+    """Keep caller-style first turns labeled as customer."""
+
+    segments = [
+        _segment(0.0, 2.0, "I am calling because I need help with my account."),
+        _segment(2.4, 4.0, "How may I help you?"),
+    ]
+
+    result = assign_speakers(segments)
+
+    assert result[0]["speaker"] == SPEAKER_01
+    assert result[1]["speaker"] == SPEAKER_00
+
+
+def test_customer_intent_beats_weak_agent_question_cue():
+    """Avoid labeling a customer request as agent just because it says can you."""
+
+    segments = [
+        _segment(0.0, 2.0, "911, what are you reporting?"),
+        _segment(2.2, 5.0, "I need help, can you send someone right away?"),
+    ]
+
+    result = assign_speakers(segments)
+
+    assert result[1]["speaker"] == SPEAKER_01
+
+
+def test_weak_single_cue_does_not_override_current_speaker():
+    """Require stronger evidence before overriding the current speaker."""
+
+    segments = [
+        _segment(0.0, 2.0, "I am calling because my account is locked."),
+        _segment(2.1, 4.0, "Can you see the error message on the screen"),
+    ]
+
+    result = assign_speakers(segments)
+
+    assert result[0]["speaker"] == SPEAKER_01
+    assert result[1]["speaker"] == SPEAKER_01
+
+
 def test_speaker_changes_on_gap():
     """Switch speakers when adjacent segments have a long pause."""
 

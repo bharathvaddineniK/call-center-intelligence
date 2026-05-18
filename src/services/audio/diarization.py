@@ -1,32 +1,50 @@
+import re
+
 SPEAKER_00 = "Agent"
 SPEAKER_01 = "Customer"
 SPEAKER_CHANGE_PAUSE_SECONDS = 0.5
+STRONG_ROLE_SCORE = 3
+ROLE_SCORE_MARGIN = 2
+AGENT_OPENING_PATTERNS = (
+    r"\bthank\s+you\s+for\s+calling\b",
+    r"\bthanks\s+for\s+calling\b",
+    r"\b(?:good\s+morning|good\s+afternoon|good\s+evening),?\s+.*\bhow\s+may\s+i\s+help\b",
+    r"\b(?:this\s+is|you(?:'re| are)\s+speaking\s+with)\s+[a-z]+",
+    r"\b(?:technical\s+support|customer\s+support|support\s+desk|help\s+desk)\b",
+    r"\b911\b.*\b(?:what|where|do|are|can|is)\b",
+)
+CUSTOMER_OPENING_PATTERNS = (
+    r"\bi\s+(?:am\s+)?calling\s+(?:because|about|to)\b",
+    r"\bi\s+(?:need|want|would\s+like)\b",
+    r"\bmy\s+(?:account|order|service|phone|internet|bill)\b",
+    r"\bwe\s+(?:need|have|are|were)\b",
+)
 AGENT_CUES = (
-    "911,",
-    "what are you reporting",
-    "what is your emergency",
-    "how may i help",
-    "how can i help",
-    "where are you",
-    "what is the address",
-    "can you",
-    "do you",
-    "are you",
-    "stay on the line",
-    "i can help",
-    "i'm going to",
+    ("911,", STRONG_ROLE_SCORE),
+    ("what are you reporting", STRONG_ROLE_SCORE),
+    ("what is your emergency", STRONG_ROLE_SCORE),
+    ("how may i help", STRONG_ROLE_SCORE),
+    ("how can i help", STRONG_ROLE_SCORE),
+    ("where are you", STRONG_ROLE_SCORE),
+    ("what is the address", STRONG_ROLE_SCORE),
+    ("stay on the line", STRONG_ROLE_SCORE),
+    ("i can help", 2),
+    ("i'm going to", 2),
+    ("can you", 1),
+    ("do you", 1),
+    ("are you", 1),
 )
 CUSTOMER_CUES = (
-    "i called",
-    "i need",
-    "i would like",
-    "i just",
-    "i have",
-    "my ",
-    "me ",
-    "we ",
-    "our ",
-    "i'm calling",
+    ("i called", STRONG_ROLE_SCORE),
+    ("i need", STRONG_ROLE_SCORE),
+    ("i would like", STRONG_ROLE_SCORE),
+    ("i just", 2),
+    ("i have", 2),
+    ("i'm calling", STRONG_ROLE_SCORE),
+    ("my ", 1),
+    ("me ", 1),
+    ("we ", 1),
+    ("our ", 1),
 )
 
 
@@ -36,7 +54,7 @@ def assign_speakers(segments: list[dict]) -> list[dict]:
     if not segments:
         return segments
 
-    current_speaker = _infer_speaker_from_text(segments[0].get("text", "")) or SPEAKER_00
+    current_speaker = _infer_initial_speaker(segments[0].get("text", "")) or SPEAKER_00
     segments[0]["speaker"] = current_speaker
 
     for i, segment in enumerate(segments[1:], start=1):
@@ -51,14 +69,35 @@ def assign_speakers(segments: list[dict]) -> list[dict]:
     return segments
 
 
+def _infer_initial_speaker(text: str) -> str | None:
+    """Infer the first speaker from common call-center opening phrases."""
+    normalized = text.lower().strip()
+    if any(re.search(pattern, normalized) for pattern in AGENT_OPENING_PATTERNS):
+        return SPEAKER_00
+    if any(re.search(pattern, normalized) for pattern in CUSTOMER_OPENING_PATTERNS):
+        return SPEAKER_01
+    return _infer_speaker_from_text(text)
+
+
 def _infer_speaker_from_text(text: str) -> str | None:
     """Infer speaker role from call-center and emergency-call phrasing."""
     normalized = f" {text.lower().strip()} "
-    if any(cue in normalized for cue in AGENT_CUES):
+    agent_score = _score_cues(normalized, AGENT_CUES)
+    customer_score = _score_cues(normalized, CUSTOMER_CUES)
+
+    if agent_score >= STRONG_ROLE_SCORE and agent_score >= customer_score + ROLE_SCORE_MARGIN:
         return SPEAKER_00
-    if any(cue in normalized for cue in CUSTOMER_CUES):
+    if (
+        customer_score >= STRONG_ROLE_SCORE
+        and customer_score >= agent_score + ROLE_SCORE_MARGIN
+    ):
         return SPEAKER_01
     return None
+
+
+def _score_cues(text: str, cues: tuple[tuple[str, int], ...]) -> int:
+    """Return a weighted score for role-specific text cues."""
+    return sum(weight for cue, weight in cues if cue in text)
 
 
 def _detect_speaker_change(prev: dict, curr: dict) -> bool:

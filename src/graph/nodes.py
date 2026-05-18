@@ -4,7 +4,19 @@ from types import SimpleNamespace
 import config
 from src.agents.qa_scorer import score_with_usage
 from src.agents.summarizer import summarize_with_usage
-from src.database.repository import get_call_by_hash, save_call, save_report
+from src.database.models import (
+    CALL_STATUS_BLOCKED,
+    CALL_STATUS_COMPLETED,
+    CALL_STATUS_FAILED,
+    CALL_STATUS_FLAGGED,
+)
+from src.database.repository import (
+    get_call_by_hash,
+    save_call,
+    save_failed_call,
+    save_report,
+    update_call_status,
+)
 from src.pipeline_models import PipelineState, SummaryResult
 from src.services.audio.cleanup import cleanup_old_files
 from src.services.audio.diarization import assign_speakers
@@ -26,7 +38,7 @@ from src.services.security.audit_logger import (
     SEVERITY_WARNING,
     log_event,
 )
-from src.services.security.injection_detector import detect_injection
+from src.services.security.injection_detector import get_matched_patterns
 from src.services.security.pii_redactor import redact_pii
 
 
@@ -98,15 +110,17 @@ def injection_check_node(state: PipelineState) -> dict:
     """Checks the audio transcription for any prompt injection"""
 
     try:
-        if detect_injection(state['transcript']):
+        matched_patterns = get_matched_patterns(state["transcript"])
+        if matched_patterns:
             log_event(
                 event_type=EVENT_INJECTION_SCAN,
-                message="Injection detected",
+                message=f"Injection detected: {', '.join(matched_patterns)}",
                 severity=SEVERITY_WARNING
             )
 
             return {
-                "injection_detected": True
+                "injection_detected": True,
+                "injection_patterns": matched_patterns,
             }
         
         log_event(
@@ -116,7 +130,8 @@ def injection_check_node(state: PipelineState) -> dict:
         )
 
         return {
-            "injection_detected": False
+            "injection_detected": False,
+            "injection_patterns": [],
         }
     except Exception as e:
         log_event(
@@ -239,6 +254,11 @@ def report_node(state: PipelineState) -> dict:
         overall_score = state["overall_score"]
         compliance_flag = state["compliance_flag"]
         summary_json = state["summary_json"]
+        call_status = (
+            CALL_STATUS_FLAGGED
+            if state.get("supervisor_review_needed")
+            else CALL_STATUS_COMPLETED
+        )
 
         audio_path = state["audio_path"]
         filename = Path(audio_path).name
@@ -246,6 +266,7 @@ def report_node(state: PipelineState) -> dict:
         existing_call = get_call_by_hash(file_hash)
         if existing_call:
             call_id = existing_call.id
+            update_call_status(call_id, call_status)
         else:
             call_id = save_call(
                 filename=filename,
@@ -256,6 +277,7 @@ def report_node(state: PipelineState) -> dict:
                 sentiment=sentiment,
                 call_purpose=call_purpose,
                 agent_behavior=agent_behavior,
+                status=call_status,
                 segments=segments,
                 confidence=confidence,
             )
@@ -316,6 +338,7 @@ def report_node(state: PipelineState) -> dict:
 
         return {
             "call_id": call_id,
+            "call_status": call_status,
             "report_path": str(report_path),
             "supervisor_review_needed": state.get("supervisor_review_needed"),
         }
@@ -329,19 +352,38 @@ def report_node(state: PipelineState) -> dict:
 
 
 def error_node(state: PipelineState) -> dict:
-    """Log the existing pipeline error and return an empty update."""
-    if state.get("injection_detected") and not state.get("error"):
-        return {}
+    """Persist terminal failures/blocks and log the existing pipeline error."""
+    call_status = (
+        CALL_STATUS_BLOCKED if state.get("injection_detected") else CALL_STATUS_FAILED
+    )
+    message = state.get("error") or (
+        "Pipeline blocked by prompt injection"
+        if call_status == CALL_STATUS_BLOCKED
+        else "Pipeline failed"
+    )
+    call_id = state.get("call_id") or save_failed_call(
+        audio_path=state.get("audio_path"),
+        file_hash=state.get("file_hash"),
+        error=message,
+        status=call_status,
+        transcript=state.get("transcript"),
+        duration=state.get("duration"),
+        speaker_count=state.get("speaker_count"),
+        segments=state.get("segments"),
+        confidence=state.get("confidence"),
+    )
 
     if not state.get("error_logged"):
         log_event(
             event_type=EVENT_PIPELINE,
-            message=state.get("error", "Pipeline failed"),
-            severity=SEVERITY_ERROR,
-            call_id=state.get("call_id"),
+            message=message,
+            severity=SEVERITY_WARNING
+            if call_status == CALL_STATUS_BLOCKED
+            else SEVERITY_ERROR,
+            call_id=call_id,
         )
 
-    return {}
+    return {"call_id": call_id, "call_status": call_status}
 
 
 def supervisor_node(state: PipelineState) -> dict:

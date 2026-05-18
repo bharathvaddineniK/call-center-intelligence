@@ -1,5 +1,6 @@
 import csv
 import shutil
+import time
 from datetime import UTC
 from html import escape
 from pathlib import Path
@@ -827,6 +828,15 @@ def format_duration_range(seconds: int) -> str:
     return f"about {low_minutes}-{high_minutes} minutes"
 
 
+def format_elapsed_time(seconds: float) -> str:
+    """Format elapsed processing time for final status messages."""
+    if seconds < 60:
+        return f"{seconds:.1f} seconds"
+
+    minutes, remaining_seconds = divmod(seconds, 60)
+    return f"{int(minutes)} min {remaining_seconds:.1f} sec"
+
+
 def get_processing_message(audio_path: str) -> str:
     from src.services.audio.cache import compute_hash, get_cached_transcript
 
@@ -925,6 +935,19 @@ def format_report_panel_html(ready: bool = False) -> str:
     )
 
 
+def format_injection_block_detail(result: dict) -> str:
+    """Return a user-facing reason for prompt-injection blocking."""
+    patterns = result.get("injection_patterns") or []
+    if not patterns:
+        return "Pipeline stopped before summary and QA scoring."
+
+    pattern_text = ", ".join(str(pattern) for pattern in patterns)
+    return (
+        "Pipeline stopped before summary and QA scoring. "
+        f"Matched injection patterns: {pattern_text}."
+    )
+
+
 def empty_analysis_outputs() -> tuple:
     """Return unchanged/empty outputs while progress advances."""
     return (
@@ -992,8 +1015,10 @@ def format_summary_html(result: dict) -> str:
         "<div class='content-panel-body'>"
         f"<div class='summary-grid'>{cards}</div>"
         "<div class='usage-inline'>"
-        f"{format_usage_label(usage)} tokens: input {usage['summary_input']:,}, "
-        f"output {usage['summary_output']:,}"
+        f"{format_usage_label(usage)} summary tokens: "
+        f"input {usage['summary_input']:,}, "
+        f"output {usage['summary_output']:,}, "
+        f"total {usage['summary_total']:,}"
         "</div>"
         "</div>"
         "</div>"
@@ -1040,8 +1065,10 @@ def format_qa_scorecard_html(result: dict) -> str:
         "<div class='content-panel-body'>"
         f"<div class='qa-grid'>{cards}</div>"
         "<div class='usage-inline'>"
-        f"{format_usage_label(usage)} tokens: input {usage['qa_input']:,}, "
-        f"output {usage['qa_output']:,}"
+        f"{format_usage_label(usage)} QA tokens: input {usage['qa_input']:,}, "
+        f"output {usage['qa_output']:,}, "
+        f"total {usage['qa_total']:,}. "
+        f"Combined summary + QA total: {usage['total']:,}"
         "</div>"
         "</div>"
         "</div>"
@@ -1094,13 +1121,25 @@ def get_token_usage(result: dict) -> dict[str, int]:
     qa_actual = actual_usage.get("qa") or {}
 
     if summary_actual or qa_actual:
+        summary_input = int(summary_actual.get("input_tokens", 0) or 0)
+        summary_output = int(summary_actual.get("output_tokens", 0) or 0)
+        qa_input = int(qa_actual.get("input_tokens", 0) or 0)
+        qa_output = int(qa_actual.get("output_tokens", 0) or 0)
+        summary_total = int(summary_actual.get("total_tokens", 0) or 0)
+        qa_total = int(qa_actual.get("total_tokens", 0) or 0)
+        if summary_total == 0:
+            summary_total = summary_input + summary_output
+        if qa_total == 0:
+            qa_total = qa_input + qa_output
+
         actual = {
-            "summary_input": int(summary_actual.get("input_tokens", 0) or 0),
-            "summary_output": int(summary_actual.get("output_tokens", 0) or 0),
-            "qa_input": int(qa_actual.get("input_tokens", 0) or 0),
-            "qa_output": int(qa_actual.get("output_tokens", 0) or 0),
-            "total": int(summary_actual.get("total_tokens", 0) or 0)
-            + int(qa_actual.get("total_tokens", 0) or 0),
+            "summary_input": summary_input,
+            "summary_output": summary_output,
+            "summary_total": summary_total,
+            "qa_input": qa_input,
+            "qa_output": qa_output,
+            "qa_total": qa_total,
+            "total": summary_total + qa_total,
             "source": "actual",
         }
         if actual["total"] > 0:
@@ -1114,8 +1153,10 @@ def get_token_usage(result: dict) -> dict[str, int]:
         return {
             "summary_input": 0,
             "summary_output": 0,
+            "summary_total": 0,
             "qa_input": 0,
             "qa_output": 0,
+            "qa_total": 0,
             "total": 0,
             "source": "empty",
         }
@@ -1126,13 +1167,17 @@ def get_token_usage(result: dict) -> dict[str, int]:
     qa_output = estimate_token_count(str(qa_scores)) + estimate_token_count(
         str(result.get("overall_score", ""))
     )
+    summary_total = summary_input + summary_output
+    qa_total = qa_input + qa_output
 
     return {
         "summary_input": summary_input,
         "summary_output": summary_output,
+        "summary_total": summary_total,
         "qa_input": qa_input,
         "qa_output": qa_output,
-        "total": summary_input + summary_output + qa_input + qa_output,
+        "qa_total": qa_total,
+        "total": summary_total + qa_total,
         "source": "estimated",
     }
 
@@ -1387,7 +1432,7 @@ def format_audit_log_html(audit_rows: list[list[str]]) -> str:
         return "<p>No audit events yet.</p>"
 
     rows_html = ""
-    for time, severity, event, call_id, message in audit_rows:
+    for event_time, severity, event, call_id, message in audit_rows:
         severity_class = (
             "severity-error"
             if severity == "error"
@@ -1397,7 +1442,7 @@ def format_audit_log_html(audit_rows: list[list[str]]) -> str:
         )
         rows_html += (
             "<tr>"
-            f"<td class='audit-time'>{escape(time)}</td>"
+            f"<td class='audit-time'>{escape(event_time)}</td>"
             f"<td><span class='severity-pill {severity_class}'>{escape(severity)}</span></td>"
             f"<td>{escape(format_audit_event_label(event))}</td>"
             f"<td>{escape(call_id)}</td>"
@@ -1468,6 +1513,8 @@ def get_observability_display():
 
 def run_pipeline(audio_path: str):
     """Run the call analysis pipeline for a Gradio-uploaded audio file."""
+    started_at = time.perf_counter()
+
     if not audio_path:
         yield (
             gr.update(
@@ -1562,7 +1609,7 @@ def run_pipeline(audio_path: str):
             gr.update(
                 value=format_status_html(
                     "Injection attempt detected",
-                    "Pipeline stopped before summary and QA scoring.",
+                    format_injection_block_detail(result),
                     percent=100,
                 ),
                 visible=True,
@@ -1589,7 +1636,10 @@ def run_pipeline(audio_path: str):
         gr.update(
             value=format_status_html(
                 "Processing complete",
-                "Transcript, summary, QA scorecard, and reports are ready.",
+                (
+                    "Transcript, summary, QA scorecard, and reports are ready. "
+                    f"Total time: {format_elapsed_time(time.perf_counter() - started_at)}."
+                ),
                 percent=100,
             ),
             visible=True,

@@ -1,3 +1,4 @@
+from src.database.models import CALL_STATUS_FAILED
 from src.database.repository import get_recent_audit_logs
 from src.graph.nodes import (
     error_node,
@@ -42,6 +43,7 @@ def test_injection_check_node_clean():
     result = injection_check_node({"transcript": "The caller needs help with billing."})
 
     assert result["injection_detected"] is False
+    assert result["injection_patterns"] == []
 
     audit_logs = get_recent_audit_logs()
     assert audit_logs[0].event_type == EVENT_INJECTION_SCAN
@@ -54,10 +56,13 @@ def test_injection_check_node_malicious():
     )
 
     assert result["injection_detected"] is True
+    assert "instruction override" in result["injection_patterns"]
+    assert "score manipulation" in result["injection_patterns"]
 
     audit_logs = get_recent_audit_logs()
     assert audit_logs[0].event_type == EVENT_INJECTION_SCAN
     assert audit_logs[0].severity == "warning"
+    assert "instruction override" in audit_logs[0].message
 
 
 def test_pii_redaction_node_redacts_pii():
@@ -96,9 +101,10 @@ def test_pii_redaction_node_clean_text():
 
 def test_error_node_logs_error():
     """Log the existing error and return an empty update."""
-    result = error_node({"error": "Something failed"})
+    result = error_node({"audio_path": "fake/path.wav", "error": "Something failed"})
 
-    assert result == {}
+    assert result["call_id"] > 0
+    assert result["call_status"] == CALL_STATUS_FAILED
 
     audit_logs = get_recent_audit_logs()
     assert audit_logs[0].event_type == EVENT_PIPELINE

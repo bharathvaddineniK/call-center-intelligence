@@ -1,5 +1,11 @@
 from pathlib import Path
 
+from src.database.models import (
+    CALL_STATUS_BLOCKED,
+    CALL_STATUS_COMPLETED,
+    CALL_STATUS_FAILED,
+)
+from src.database.repository import get_call_by_id
 from src.graph import nodes
 from src.graph.pipeline import get_graph
 from src.pipeline_models import QAResult, SummaryResult
@@ -153,7 +159,11 @@ def test_report_node_success(monkeypatch, tmp_path):
     )
 
     assert result["call_id"] > 0
+    assert result["call_status"] == CALL_STATUS_COMPLETED
     assert Path(result["report_path"]).exists()
+
+    call = get_call_by_id(result["call_id"])
+    assert call.status == CALL_STATUS_COMPLETED
 
 
 def test_pipeline_valid_end_to_end(monkeypatch, tmp_path):
@@ -169,6 +179,7 @@ def test_pipeline_valid_end_to_end(monkeypatch, tmp_path):
     result = graph.invoke({"audio_path": "data/audio/call_114.mp3"})
 
     assert result["call_id"] > 0
+    assert result["call_status"] == CALL_STATUS_COMPLETED
     assert result["report_path"]
     assert "error" not in result or result["error"] is None
 
@@ -185,8 +196,13 @@ def test_pipeline_injection_blocked(monkeypatch):
     result = graph.invoke({"audio_path": "data/audio/call_114.mp3"})
 
     assert result["injection_detected"] is True
+    assert "instruction override" in result["injection_patterns"]
+    assert result["call_status"] == CALL_STATUS_BLOCKED
+    assert result["call_id"] > 0
     assert result.get("error") is None
-    assert result.get("call_id") is None
+
+    call = get_call_by_id(result["call_id"])
+    assert call.status == CALL_STATUS_BLOCKED
 
 
 def test_pipeline_invalid_audio():
@@ -195,4 +211,9 @@ def test_pipeline_invalid_audio():
     result = graph.invoke({"audio_path": "fake/path.wav"})
 
     assert result["error"] == "File not found"
+    assert result["call_status"] == CALL_STATUS_FAILED
+    assert result["call_id"] > 0
     assert result.get("transcript") is None
+
+    call = get_call_by_id(result["call_id"])
+    assert call.status == CALL_STATUS_FAILED

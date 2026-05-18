@@ -1,3 +1,8 @@
+from src.database.models import (
+    CALL_STATUS_COMPLETED,
+    CALL_STATUS_FAILED,
+    CALL_STATUS_FLAGGED,
+)
 from src.database.repository import (
     get_all_calls,
     get_call_by_id,
@@ -5,7 +10,9 @@ from src.database.repository import (
     get_report_by_call_id,
     get_table_counts,
     save_call,
+    save_failed_call,
     save_report,
+    update_call_status,
 )
 from src.services.security.audit_logger import (
     EVENT_INTAKE_VALIDATED,
@@ -65,6 +72,34 @@ def test_get_call_by_id_returns_correct_call():
     call = get_call_by_id(call_id)
 
     assert call.filename == "billing-call.mp3"
+    assert call.status == CALL_STATUS_COMPLETED
+
+
+def test_save_call_accepts_status():
+    """Save a call with an explicit status."""
+    call_id = create_test_call(filename="flagged-call.mp3", file_hash="hash-flagged")
+    update_call_status(call_id, CALL_STATUS_FLAGGED)
+
+    call = get_call_by_id(call_id)
+
+    assert call.status == CALL_STATUS_FLAGGED
+
+
+def test_save_failed_call_persists_minimal_failed_row():
+    """Persist a minimal failed call row when the pipeline stops before reports."""
+    call_id = save_failed_call(
+        audio_path="fake/path.wav",
+        file_hash=None,
+        error="File not found",
+        status=CALL_STATUS_FAILED,
+    )
+
+    call = get_call_by_id(call_id)
+
+    assert call.filename == "path.wav"
+    assert call.status == CALL_STATUS_FAILED
+    assert call.transcription == ""
+    assert call.agent_behavior == "File not found"
 
 
 def test_get_all_calls_returns_list():

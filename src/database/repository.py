@@ -1,4 +1,13 @@
-from src.database.models import AuditLog, Call, Report
+import hashlib
+from pathlib import Path
+
+from src.database.models import (
+    CALL_STATUS_COMPLETED,
+    CALL_STATUSES,
+    AuditLog,
+    Call,
+    Report,
+)
 from src.database.session import session_scope
 
 
@@ -21,10 +30,13 @@ def save_call(
     sentiment: str,
     call_purpose: str | None = None,
     agent_behavior: str | None = None,
+    status: str = CALL_STATUS_COMPLETED,
     segments: dict | None = None,
     confidence: float | None = None,
 ) -> int:
     """Save a call record and return the new call id."""
+    _validate_call_status(status)
+
     call = Call(
         filename=filename,
         file_hash=file_hash,
@@ -34,6 +46,7 @@ def save_call(
         sentiment=sentiment,
         call_purpose=call_purpose,
         agent_behavior=agent_behavior,
+        status=status,
         segments=segments,
         confidence=confidence,
     )
@@ -43,6 +56,65 @@ def save_call(
         session.flush()
         session.refresh(call)
         return call.id
+
+
+def save_failed_call(
+    *,
+    audio_path: str | None,
+    file_hash: str | None,
+    error: str | None,
+    status: str,
+    transcript: str | None = None,
+    duration: float | None = None,
+    speaker_count: int | None = None,
+    segments: dict | None = None,
+    confidence: float | None = None,
+) -> int:
+    """Persist a minimal call row for failed or blocked pipeline runs."""
+    _validate_call_status(status)
+    resolved_hash = file_hash or _fallback_file_hash(audio_path, error, status)
+    existing_call = get_call_by_hash(resolved_hash)
+
+    if existing_call is not None:
+        update_call_status(existing_call.id, status)
+        return existing_call.id
+
+    return save_call(
+        filename=Path(audio_path).name if audio_path else "unknown",
+        file_hash=resolved_hash,
+        duration=duration or 0,
+        transcription=transcript or "",
+        speaker_count=speaker_count or 0,
+        sentiment="unknown",
+        call_purpose=status,
+        agent_behavior=error or status,
+        status=status,
+        segments=segments,
+        confidence=confidence,
+    )
+
+
+def _fallback_file_hash(audio_path: str | None, error: str | None, status: str) -> str:
+    """Build a deterministic synthetic hash when audio hashing never completed."""
+    key = f"{audio_path or 'unknown'}:{error or ''}:{status}"
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()
+
+
+def update_call_status(call_id: int, status: str) -> None:
+    """Update the persisted status for a call record."""
+    _validate_call_status(status)
+
+    with session_scope() as session:
+        call = session.query(Call).filter(Call.id == call_id).first()
+        if call is not None:
+            call.status = status
+
+
+def _validate_call_status(status: str) -> None:
+    """Raise a clear error for unsupported call statuses."""
+    if status not in CALL_STATUSES:
+        valid_statuses = ", ".join(sorted(CALL_STATUSES))
+        raise ValueError(f"Invalid call status '{status}'. Use one of: {valid_statuses}.")
 
 
 def save_report(

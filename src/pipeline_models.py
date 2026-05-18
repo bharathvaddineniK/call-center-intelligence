@@ -13,6 +13,7 @@ class PipelineState(TypedDict):
     speaker_count: int | None
     pii_detected: bool | None
     injection_detected: bool | None
+    injection_patterns: list[str] | None
     sentiment: str | None
     call_purpose: str | None
     agent_behavior: str | None
@@ -21,6 +22,7 @@ class PipelineState(TypedDict):
     compliance_flag: bool | None
     summary: str | None
     call_id: int | None
+    call_status: str | None
     report_path: str | None
     error: str | None
     error_logged: bool | None
