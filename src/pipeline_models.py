@@ -12,6 +12,7 @@ class PipelineState(TypedDict):
     transcript: str | None
     segments: list[dict[str, Any]] | None
     confidence: float | None
+    low_quality_audio: bool | None
     speaker_count: int | None
     pii_detected: bool | None
     injection_detected: bool | None

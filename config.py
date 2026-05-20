@@ -35,6 +35,7 @@ BEAM_SIZE = 1
 MAX_AUDIO_DURATION = 3600 # seconds
 MAX_FILE_SIZE = 50 # MB
 CONFIDENCE_THRESHOLD = 0.7 # avg_logprob scale 0-1
+MIN_CONFIDENCE_THRESHOLD = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.4"))
 MAX_AUDIO_AGE_HOURS = int(os.getenv("MAX_AUDIO_AGE_HOURS", "24"))
 
 BASE_DIR = Path(__file__).parent

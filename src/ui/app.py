@@ -475,6 +475,11 @@ APP_CSS = """
     background: #e6e8ff;
 }
 
+.conversation-pill-warning {
+    color: #92400e;
+    background: #fff3d6;
+}
+
 .conversation-body {
     padding: 14px 14px 16px;
     max-height: clamp(320px, calc(100vh - 360px), 560px);
@@ -543,6 +548,17 @@ APP_CSS = """
     border-radius: 7px;
     color: #14532d;
     background: #e5f8ee;
+}
+
+.conversation-audio-warning {
+    margin: 0 0 14px;
+    padding: 10px 12px;
+    border-left: 5px solid var(--warning);
+    border-radius: 7px;
+    color: #7c2d12;
+    background: #fff7ed;
+    font-size: 13px;
+    font-weight: 700;
 }
 
 .transcript-box textarea {
@@ -1344,7 +1360,21 @@ def format_conversation_html(result: dict) -> str:
 
     summary = result.get("summary") or "Summary will appear after analysis."
     confidence = format_confidence(result.get("confidence"))
+    low_quality_audio = bool(result.get("low_quality_audio"))
+    quality_pill = (
+        "<span class='conversation-pill conversation-pill-warning'>Low quality audio</span>"
+        if low_quality_audio
+        else ""
+    )
     rows_html = []
+
+    if low_quality_audio:
+        rows_html.append(
+            "<div class='conversation-audio-warning'>"
+            "Transcript confidence is below the configured quality threshold. "
+            "Review the transcript before relying on summary or QA scores."
+            "</div>"
+        )
 
     if summary:
         rows_html.append(
@@ -1386,6 +1416,7 @@ def format_conversation_html(result: dict) -> str:
             <span class="conversation-pill conversation-pill-confidence">
                 Confidence: {escape(confidence)}
             </span>
+            {quality_pill}
         </div>
     </div>
     <div class="conversation-body">{body_html}</div>
@@ -1540,6 +1571,10 @@ def build_history_result(call, report) -> dict:
         "transcript": call.transcription,
         "segments": call.segments,
         "confidence": call.confidence,
+        "low_quality_audio": (
+            call.confidence is not None
+            and call.confidence < config.MIN_CONFIDENCE_THRESHOLD
+        ),
         "summary": report.summary if report else None,
         "sentiment": call.sentiment,
         "call_purpose": call.call_purpose,

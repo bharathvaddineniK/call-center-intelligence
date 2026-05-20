@@ -12,7 +12,10 @@ from src.pipeline_models import QAResult, SummaryResult
 from src.services.audio.transcriber import TranscriptionResult
 
 
-def create_transcription_result(text: str = "The caller needs help with billing."):
+def create_transcription_result(
+    text: str = "The caller needs help with billing.",
+    confidence: float = 0.9,
+):
     """Create a transcription result for integration tests."""
     return TranscriptionResult(
         text=text,
@@ -25,7 +28,7 @@ def create_transcription_result(text: str = "The caller needs help with billing.
                 "no_speech_prob": 0.1,
             }
         ],
-        confidence=0.9,
+        confidence=confidence,
         speaker_count=1,
         source="groq",
         duration=2.0,
@@ -101,7 +104,22 @@ def test_transcription_node_success(monkeypatch):
 
     assert result["transcript"] == "The caller needs help with billing."
     assert result["confidence"] == 0.9
+    assert result["low_quality_audio"] is False
     assert result["file_hash"]
+
+
+def test_transcription_node_flags_low_quality_audio(monkeypatch):
+    """Flag low-quality audio when transcript confidence is below threshold."""
+    monkeypatch.setattr(nodes.config, "MIN_CONFIDENCE_THRESHOLD", 0.8)
+    monkeypatch.setattr(
+        "src.services.audio.transcriber._transcribe_with_groq",
+        lambda file_path: create_transcription_result(confidence=0.35),
+    )
+
+    result = nodes.transcription_node({"audio_path": "data/audio/call_114.mp3"})
+
+    assert result["confidence"] == 0.35
+    assert result["low_quality_audio"] is True
 
 
 def test_transcription_node_failure(monkeypatch):

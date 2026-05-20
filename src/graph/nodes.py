@@ -94,18 +94,30 @@ def transcription_node(state: PipelineState) -> dict:
         audio_path = state["audio_path"]
         result = get_transcription(audio_path)
         segments_with_speakers = assign_speakers(result.segments)
+        low_quality_audio = result.confidence < config.MIN_CONFIDENCE_THRESHOLD
 
         log_event(
             event_type=EVENT_TRANSCRIPTION,
             message=f"Transcript ready via {result.source} with confidence {result.confidence}",
             severity=SEVERITY_INFO
         )
+        if low_quality_audio:
+            log_event(
+                event_type=EVENT_TRANSCRIPTION,
+                message=(
+                    "Low quality audio detected: "
+                    f"confidence {result.confidence} below "
+                    f"{config.MIN_CONFIDENCE_THRESHOLD}"
+                ),
+                severity=SEVERITY_WARNING,
+            )
 
         return {
             "file_hash": result.file_hash,
             "transcript": result.text,
             "segments": segments_with_speakers,
             "confidence": result.confidence,
+            "low_quality_audio": low_quality_audio,
             "speaker_count": len(
                 {
                     segment.get("speaker")
