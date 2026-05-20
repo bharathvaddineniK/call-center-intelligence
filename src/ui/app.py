@@ -1076,6 +1076,15 @@ def format_summary_html(result: dict) -> str:
         ("Summary", result.get("summary") or "No summary was generated.", True),
         ("Sentiment", result.get("sentiment") or "N/A", False),
         ("Call Purpose", result.get("call_purpose") or "N/A", False),
+        ("Resolution Status", result.get("resolution_status") or "N/A", False),
+        ("Sentiment Trajectory", result.get("sentiment_trajectory") or "N/A", False),
+        ("Key Entities", format_summary_list(result.get("key_entities")), True),
+        (
+            "Key Discussion Points",
+            format_summary_list(result.get("key_discussion_points")),
+            True,
+        ),
+        ("Action Items", format_summary_list(result.get("action_items")), True),
         ("Agent Behavior", result.get("agent_behavior") or "N/A", True),
         ("Compliance Flag", str(result.get("compliance_flag", "N/A")), False),
         ("Overall QA", str(result.get("overall_score", "N/A")), False),
@@ -1107,6 +1116,17 @@ def format_summary_html(result: dict) -> str:
         "</div>"
         "</div>"
     )
+
+
+def format_summary_list(value) -> str:
+    """Format SummaryResult list fields for compact display."""
+    if not value:
+        return "N/A"
+
+    if isinstance(value, str):
+        return value
+
+    return "\n".join(f"- {item}" for item in value)
 
 
 def format_qa_scorecard_html(result: dict) -> str:
@@ -1524,6 +1544,11 @@ def build_history_result(call, report) -> dict:
         "sentiment": call.sentiment,
         "call_purpose": call.call_purpose,
         "agent_behavior": summary_data.get("agent_behavior") or call.agent_behavior,
+        "key_entities": summary_data.get("key_entities") or [],
+        "key_discussion_points": summary_data.get("key_discussion_points") or [],
+        "action_items": summary_data.get("action_items") or [],
+        "resolution_status": summary_data.get("resolution_status"),
+        "sentiment_trajectory": summary_data.get("sentiment_trajectory"),
         "compliance_flag": report.compliance_flag if report else None,
         "compliance_severity": report.compliance_severity if report else None,
         "violation_description": report.violation_description if report else None,

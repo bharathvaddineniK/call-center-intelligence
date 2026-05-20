@@ -229,7 +229,12 @@ def summarize_qa_node(state: PipelineState) -> dict:
             "summary": summary.summary,
             "sentiment": summary.sentiment,
             "agent_behavior": summary.agent_behavior,
-            "call_purpose": summary.call_purpose, 
+            "call_purpose": summary.call_purpose,
+            "key_entities": summary.key_entities,
+            "key_discussion_points": summary.key_discussion_points,
+            "action_items": summary.action_items,
+            "resolution_status": summary.resolution_status,
+            "sentiment_trajectory": summary.sentiment_trajectory,
             "qa_scores": {
                 "empathy_score": qa_score.empathy_score,
                 "resolution_score": qa_score.resolution_score,
