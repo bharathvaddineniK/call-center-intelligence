@@ -73,13 +73,13 @@ def get_transcription(file_path: str) -> TranscriptionResult:
     result.file_hash = file_hash
     save_to_cache(
         file_hash=file_hash,
-        text=result.text, 
-        segments=result.segments, 
-        confidence=result.confidence, 
-        duration=result.duration
-    )  
+        text=result.text,
+        segments=result.segments,
+        confidence=result.confidence,
+        duration=result.duration,
+    )
     return result
-    
+
 
 def _transcribe(file_path: str) -> TranscriptionResult:
     """Try Groq primary, then Groq turbo, then local Whisper."""
@@ -95,6 +95,7 @@ def _transcribe(file_path: str) -> TranscriptionResult:
         except Exception as e:
             logger.warning("Groq turbo failed, falling back to Whisper: %s", e)
             return _transcribe_with_whisper(file_path)
+
 
 def _build_cached_result(cached_call: dict) -> TranscriptionResult:
     """Build a transcription result from a cached database row."""

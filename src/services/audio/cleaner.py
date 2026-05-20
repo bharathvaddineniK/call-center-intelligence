@@ -124,9 +124,7 @@ def _phrases_match(first_phrase: list[str], second_phrase: list[str]) -> bool:
     if len(first_phrase) != len(second_phrase):
         return False
 
-    return [
-        _normalize_repeated_word(word) for word in first_phrase
-    ] == [
+    return [_normalize_repeated_word(word) for word in first_phrase] == [
         _normalize_repeated_word(word) for word in second_phrase
     ]
 

@@ -12,7 +12,7 @@ def test_config_paths():
         config.CACHE_DIR,
         config.DATABASE_PATH,
     ]
-    
+
     for path_var in path_vars:
         assert isinstance(path_var, Path), f"{path_var} is not a Path object"
         assert path_var.is_absolute(), f"{path_var} is not an absolute path"
@@ -25,6 +25,6 @@ def test_config_api_keys():
         config.GROQ_API_KEY,
         config.LANGSMITH_API_KEY,
     ]
-    
+
     for api_key in api_keys:
         assert api_key is not None, "One or more API keys are not loaded"

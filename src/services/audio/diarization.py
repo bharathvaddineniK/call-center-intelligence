@@ -87,10 +87,7 @@ def _infer_speaker_from_text(text: str) -> str | None:
 
     if agent_score >= STRONG_ROLE_SCORE and agent_score >= customer_score + ROLE_SCORE_MARGIN:
         return SPEAKER_00
-    if (
-        customer_score >= STRONG_ROLE_SCORE
-        and customer_score >= agent_score + ROLE_SCORE_MARGIN
-    ):
+    if customer_score >= STRONG_ROLE_SCORE and customer_score >= agent_score + ROLE_SCORE_MARGIN:
         return SPEAKER_01
     return None
 

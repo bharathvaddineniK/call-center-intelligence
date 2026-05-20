@@ -865,9 +865,7 @@ def format_status_html(
     percent: int | None = None,
 ) -> str:
     """Format pipeline status with optional animated progress."""
-    progress_label = (
-        f"<span>{escape(title)} · {percent}%</span>" if percent is not None else ""
-    )
+    progress_label = f"<span>{escape(title)} · {percent}%</span>" if percent is not None else ""
     progress_html = (
         "<div class='progress-row'>"
         "<div class='progress-track'>"
@@ -1178,9 +1176,7 @@ def format_qa_scorecard_html(result: dict) -> str:
     )
     evidence = result.get("timestamp_evidence") or []
     evidence_text = (
-        ", ".join(str(item) for item in evidence)
-        if evidence
-        else "No timestamp evidence"
+        ", ".join(str(item) for item in evidence) if evidence else "No timestamp evidence"
     )
     compliance_details = [
         ("Severity", result.get("compliance_severity") or "none"),
@@ -1488,10 +1484,7 @@ def load_call_history_summary():
 
 def load_history_choices():
     """Return dropdown choices for MP3 history detail loading."""
-    choices = [
-        format_history_choice(call, report)
-        for call, report in get_mp3_history_records()
-    ]
+    choices = [format_history_choice(call, report) for call, report in get_mp3_history_records()]
     return gr.update(choices=choices, value=choices[0] if choices else None)
 
 
@@ -1572,8 +1565,7 @@ def build_history_result(call, report) -> dict:
         "segments": call.segments,
         "confidence": call.confidence,
         "low_quality_audio": (
-            call.confidence is not None
-            and call.confidence < config.MIN_CONFIDENCE_THRESHOLD
+            call.confidence is not None and call.confidence < config.MIN_CONFIDENCE_THRESHOLD
         ),
         "summary": report.summary if report else None,
         "sentiment": call.sentiment,
@@ -1965,9 +1957,7 @@ def run_pipeline(
                     *empty_analysis_outputs(),
                 )
                 next_step_status = build_next_step_status(node_name)
-                can_continue = not update.get("error") and not update.get(
-                    "injection_detected"
-                )
+                can_continue = not update.get("error") and not update.get("injection_detected")
                 if next_step_status and can_continue:
                     yield (
                         gr.update(value=next_step_status, visible=True),

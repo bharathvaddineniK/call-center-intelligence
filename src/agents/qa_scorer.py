@@ -140,8 +140,7 @@ def _summarize_usage(usage_metadata: dict) -> dict:
 def _recompute_overall_score(result: QAResult) -> float:
     """Calculate the weighted overall QA score from individual category scores."""
     overall_score = sum(
-        getattr(result, score_field) * weight
-        for score_field, weight in SCORE_WEIGHTS
+        getattr(result, score_field) * weight for score_field, weight in SCORE_WEIGHTS
     )
 
     return round(overall_score, 2)

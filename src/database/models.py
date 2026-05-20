@@ -40,10 +40,7 @@ class Call(Base):
     confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     caller_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
     department: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=lambda: datetime.now(UTC)
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
 
 class Report(Base):
@@ -64,10 +61,7 @@ class Report(Base):
     timestamp_evidence: Mapped[list | None] = mapped_column(JSON, nullable=True)
     pdf_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     report_json: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=lambda: datetime.now(UTC)
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
 
 class AuditLog(Base):
@@ -81,10 +75,7 @@ class AuditLog(Base):
     event_type: Mapped[str] = mapped_column(String(50))
     message: Mapped[str] = mapped_column(Text)
     severity: Mapped[str] = mapped_column(String(20))
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=lambda: datetime.now(UTC)
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))
 
 
 class TranscriptionCache(Base):
@@ -96,7 +87,4 @@ class TranscriptionCache(Base):
     segments: Mapped[dict] = mapped_column(JSON)
     confidence: Mapped[float] = mapped_column(Float)
     duration: Mapped[float] = mapped_column(Float)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        default=lambda: datetime.now(UTC)
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(UTC))

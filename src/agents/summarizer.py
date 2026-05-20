@@ -80,9 +80,7 @@ def _get_fallback_summary_chain():
 
     if FALLBACK_SUMMARY_CHAIN is None:
         fallback_llm = get_fallback_llm(temperature=LLM_TEMPERATURE)
-        FALLBACK_SUMMARY_CHAIN = SUMMARY_PROMPT | fallback_llm.with_structured_output(
-            SummaryResult
-        )
+        FALLBACK_SUMMARY_CHAIN = SUMMARY_PROMPT | fallback_llm.with_structured_output(SummaryResult)
 
     return FALLBACK_SUMMARY_CHAIN
 

@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 def _env(name: str, default: str | None = None) -> str | None:
     """Read env vars defensively so accidental quotes/spaces do not become IDs."""
     value = os.getenv(name, default)
@@ -32,16 +33,16 @@ AUDIO_MODEL_FALLBACK = _env("AUDIO_MODEL_FALLBACK", "whisper-large-v3-turbo")
 AUDIO_MODEL = "whisper-large-v3"
 FALLBACK_AUDIO_MODEL = "large-v2"
 BEAM_SIZE = 1
-MAX_AUDIO_DURATION = 3600 # seconds
-MAX_FILE_SIZE = 50 # MB
-CONFIDENCE_THRESHOLD = 0.7 # avg_logprob scale 0-1
+MAX_AUDIO_DURATION = 3600  # seconds
+MAX_FILE_SIZE = 50  # MB
+CONFIDENCE_THRESHOLD = 0.7  # avg_logprob scale 0-1
 MIN_CONFIDENCE_THRESHOLD = float(os.getenv("MIN_CONFIDENCE_THRESHOLD", "0.4"))
 MAX_AUDIO_AGE_HOURS = int(os.getenv("MAX_AUDIO_AGE_HOURS", "24"))
 
 BASE_DIR = Path(__file__).parent
 AUDIO_DIR = BASE_DIR / "data" / "audio"
 REPORTS_DIR = BASE_DIR / "data" / "reports"
-CACHE_DIR = BASE_DIR /  "data" / "cache"
+CACHE_DIR = BASE_DIR / "data" / "cache"
 DATABASE_PATH = BASE_DIR / "data" / "call_center.db"
 
 os.environ["LANGCHAIN_TRACING_V2"] = "true"

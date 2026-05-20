@@ -63,32 +63,27 @@ def intake_node(state: PipelineState) -> dict:
     try:
         audio_path = state["audio_path"]
         result = validate_audio(audio_path)
-        
+
         if not result.is_valid:
             log_event(
-                event_type=EVENT_INTAKE, 
-                message=f"Intake failed: {result.error}", 
-                severity=SEVERITY_ERROR
+                event_type=EVENT_INTAKE,
+                message=f"Intake failed: {result.error}",
+                severity=SEVERITY_ERROR,
             )
             return {"error": result.error, "error_logged": True}
-        
+
         log_event(
-            event_type=EVENT_INTAKE, 
-            message=f"Intake validated: {audio_path}", 
-            severity=SEVERITY_INFO
+            event_type=EVENT_INTAKE,
+            message=f"Intake validated: {audio_path}",
+            severity=SEVERITY_INFO,
         )
-        
-        return {
-            "duration": result.duration
-        }
+
+        return {"duration": result.duration}
     except Exception as e:
-        log_event(
-            event_type=EVENT_INTAKE, 
-            message=str(e), 
-            severity=SEVERITY_ERROR
-        )
+        log_event(event_type=EVENT_INTAKE, message=str(e), severity=SEVERITY_ERROR)
         return {"error": str(e), "error_logged": True}
-    
+
+
 def transcription_node(state: PipelineState) -> dict:
     try:
         audio_path = state["audio_path"]
@@ -99,7 +94,7 @@ def transcription_node(state: PipelineState) -> dict:
         log_event(
             event_type=EVENT_TRANSCRIPTION,
             message=f"Transcript ready via {result.source} with confidence {result.confidence}",
-            severity=SEVERITY_INFO
+            severity=SEVERITY_INFO,
         )
         if low_quality_audio:
             log_event(
@@ -127,13 +122,10 @@ def transcription_node(state: PipelineState) -> dict:
             ),
         }
     except Exception as e:
-        log_event(
-            event_type=EVENT_TRANSCRIPTION, 
-            message=str(e), 
-            severity=SEVERITY_ERROR
-        )
+        log_event(event_type=EVENT_TRANSCRIPTION, message=str(e), severity=SEVERITY_ERROR)
         return {"error": f"Transcription failed: {str(e)}", "error_logged": True}
-    
+
+
 def injection_check_node(state: PipelineState) -> dict:
     """Checks the audio transcription for any prompt injection"""
 
@@ -143,18 +135,16 @@ def injection_check_node(state: PipelineState) -> dict:
             log_event(
                 event_type=EVENT_INJECTION_SCAN,
                 message=f"Injection detected: {', '.join(matched_patterns)}",
-                severity=SEVERITY_WARNING
+                severity=SEVERITY_WARNING,
             )
 
             return {
                 "injection_detected": True,
                 "injection_patterns": matched_patterns,
             }
-        
+
         log_event(
-            event_type=EVENT_INJECTION_SCAN,
-            message="No injection detected",
-            severity=SEVERITY_INFO
+            event_type=EVENT_INJECTION_SCAN, message="No injection detected", severity=SEVERITY_INFO
         )
 
         return {
@@ -162,12 +152,9 @@ def injection_check_node(state: PipelineState) -> dict:
             "injection_patterns": [],
         }
     except Exception as e:
-        log_event(
-            event_type=EVENT_INJECTION_SCAN,
-            message=str(e),
-            severity=SEVERITY_ERROR
-        )
+        log_event(event_type=EVENT_INJECTION_SCAN, message=str(e), severity=SEVERITY_ERROR)
         return {"error": str(e), "error_logged": True}
+
 
 def pii_redaction_node(state: PipelineState) -> dict:
     """Reacts the PII with placeholders"""
@@ -180,7 +167,7 @@ def pii_redaction_node(state: PipelineState) -> dict:
         for segment in state["segments"]:
             redacted_segment_text, _ = redact_pii(segment["text"])
             redacted_segments.append({**segment, "text": redacted_segment_text})
-        
+
         if pii_detected:
             log_event(
                 event_type=EVENT_PII_SCAN,
@@ -197,16 +184,13 @@ def pii_redaction_node(state: PipelineState) -> dict:
         return {
             "transcript": redacted_text,
             "segments": redacted_segments,
-            "pii_detected": pii_detected
+            "pii_detected": pii_detected,
         }
     except Exception as e:
-        log_event(
-            event_type=EVENT_PII_SCAN,
-            message=str(e),
-            severity=SEVERITY_ERROR
-        )
+        log_event(event_type=EVENT_PII_SCAN, message=str(e), severity=SEVERITY_ERROR)
         return {"error": str(e), "error_logged": True}
-    
+
+
 def summarize_qa_node(state: PipelineState) -> dict:
     """Summarize the transcript and return summary and QA state fields."""
 
@@ -272,7 +256,8 @@ def summarize_qa_node(state: PipelineState) -> dict:
             severity=SEVERITY_ERROR,
         )
         return {"error": str(e), "error_logged": True}
-    
+
+
 def report_node(state: PipelineState) -> dict:
     """Persist call/report records and generate report files."""
     try:
@@ -294,9 +279,7 @@ def report_node(state: PipelineState) -> dict:
         timestamp_evidence = state.get("timestamp_evidence") or []
         summary_json = state["summary_json"]
         call_status = (
-            CALL_STATUS_FLAGGED
-            if state.get("supervisor_review_needed")
-            else CALL_STATUS_COMPLETED
+            CALL_STATUS_FLAGGED if state.get("supervisor_review_needed") else CALL_STATUS_COMPLETED
         )
         caller_id, department = _redact_metadata(state)
 
@@ -407,9 +390,7 @@ def report_node(state: PipelineState) -> dict:
 
 def error_node(state: PipelineState) -> dict:
     """Persist terminal failures/blocks and log the existing pipeline error."""
-    call_status = (
-        CALL_STATUS_BLOCKED if state.get("injection_detected") else CALL_STATUS_FAILED
-    )
+    call_status = CALL_STATUS_BLOCKED if state.get("injection_detected") else CALL_STATUS_FAILED
     message = state.get("error") or (
         "Pipeline blocked by prompt injection"
         if call_status == CALL_STATUS_BLOCKED
@@ -434,9 +415,7 @@ def error_node(state: PipelineState) -> dict:
         log_event(
             event_type=EVENT_PIPELINE,
             message=message,
-            severity=SEVERITY_WARNING
-            if call_status == CALL_STATUS_BLOCKED
-            else SEVERITY_ERROR,
+            severity=SEVERITY_WARNING if call_status == CALL_STATUS_BLOCKED else SEVERITY_ERROR,
             call_id=call_id,
         )
 

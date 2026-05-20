@@ -24,7 +24,7 @@ def _detect_format_by_magic_bytes(file_path: Path) -> str | None:
     with open(file_path, "rb") as f:
         header = f.read(12)
 
-    if header.startswith(b"ID3") or header.startswith(b"\xFF\xFB"):
+    if header.startswith(b"ID3") or header.startswith(b"\xff\xfb"):
         return ".mp3"
 
     if header.startswith(b"RIFF"):

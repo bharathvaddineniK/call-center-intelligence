@@ -124,6 +124,7 @@ def test_transcription_node_flags_low_quality_audio(monkeypatch):
 
 def test_transcription_node_failure(monkeypatch):
     """Return an error when all transcription providers fail."""
+
     def fail(file_path):
         raise RuntimeError("provider failed")
 

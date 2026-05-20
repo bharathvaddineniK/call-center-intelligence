@@ -21,7 +21,7 @@ MOCK_SUMMARY = SummaryResult(
     key_discussion_points=["Internet not working", "Troubleshooting steps"],
     action_items=["Agent to escalate to technical team"],
     resolution_status="unresolved",
-    sentiment_trajectory="Frustrated → Calm"
+    sentiment_trajectory="Frustrated → Calm",
 )
 
 SCORE_FIELDS = (

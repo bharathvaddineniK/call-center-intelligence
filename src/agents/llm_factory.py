@@ -57,6 +57,7 @@ def get_llm(temperature: float = 0):
     supported = ", ".join(SUPPORTED_PROVIDERS)
     raise ValueError(f"Unsupported LLM provider '{provider}'. Use one of: {supported}.")
 
+
 def get_fallback_llm(temperature: float = 0) -> ChatGroq:
     """Return Groq as the fallback LLM when the primary provider fails."""
     return _build_groq_llm(temperature)

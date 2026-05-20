@@ -122,8 +122,7 @@ def generate_pdf(call: Call, report: Report, summary: SummaryResult) -> bytes:
             styles["BodyText"],
         ),
         Paragraph(
-            "Timestamp Evidence: "
-            f"{_format_list(_get_value(report, 'timestamp_evidence', []))}",
+            "Timestamp Evidence: " f"{_format_list(_get_value(report, 'timestamp_evidence', []))}",
             styles["BodyText"],
         ),
         Spacer(1, SPACER_HEIGHT),
