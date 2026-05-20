@@ -29,6 +29,9 @@ def init_db():
     _ensure_caller_id_column()
     _ensure_department_column()
     _ensure_report_json_column()
+    _ensure_compliance_severity_column()
+    _ensure_violation_description_column()
+    _ensure_timestamp_evidence_column()
 
 
 def _ensure_call_status_column() -> None:
@@ -46,6 +49,33 @@ def _ensure_report_json_column() -> None:
         table_name="reports",
         column_name="report_json",
         column_definition="TEXT",
+    )
+
+
+def _ensure_compliance_severity_column() -> None:
+    """Add reports.compliance_severity for existing SQLite databases."""
+    _ensure_column(
+        table_name="reports",
+        column_name="compliance_severity",
+        column_definition="VARCHAR(20)",
+    )
+
+
+def _ensure_violation_description_column() -> None:
+    """Add reports.violation_description for existing SQLite databases."""
+    _ensure_column(
+        table_name="reports",
+        column_name="violation_description",
+        column_definition="TEXT",
+    )
+
+
+def _ensure_timestamp_evidence_column() -> None:
+    """Add reports.timestamp_evidence for existing SQLite databases."""
+    _ensure_column(
+        table_name="reports",
+        column_name="timestamp_evidence",
+        column_definition="JSON",
     )
 
 

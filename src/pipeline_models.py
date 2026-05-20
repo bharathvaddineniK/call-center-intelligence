@@ -22,6 +22,9 @@ class PipelineState(TypedDict):
     qa_scores: dict[str, float] | None
     overall_score: float | None
     compliance_flag: bool | None
+    compliance_severity: str | None
+    violation_description: str | None
+    timestamp_evidence: list[str] | None
     summary: str | None
     call_id: int | None
     call_status: str | None
@@ -61,17 +64,30 @@ class SummaryResult(BaseModel):
 
 
 class QAResult(BaseModel):
-    empathy_score: float = Field(ge=0, le=100, description="Score for agent's empathy level")
+    empathy_score: float = Field(ge=1, le=5, description="1-5 score for agent empathy")
     resolution_score: float = Field(
-        ge=0,
-        le=100,
-        description="Score for issue resolution effectiveness",
+        ge=1,
+        le=5,
+        description="1-5 score for issue resolution effectiveness",
     )
-    compliance_score: float = Field(ge=0, le=100, description="Score for compliance with policies")
-    communication_score: float = Field(ge=0, le=100, description="Score for communication clarity")
-    professionalism_score: float = Field(ge=0, le=100, description="Score for professional conduct")
-    overall_score: float = Field(ge=0, le=100, description="Overall QA score")
+    compliance_score: float = Field(ge=1, le=5, description="1-5 score for policy compliance")
+    communication_score: float = Field(
+        ge=1,
+        le=5,
+        description="1-5 score for communication clarity",
+    )
+    professionalism_score: float = Field(ge=1, le=5, description="1-5 score for conduct")
+    overall_score: float = Field(ge=1, le=5, description="Overall 1-5 QA score")
     compliance_flag: bool = Field(description="Whether the call complies with standards")
+    compliance_severity: Literal["none", "low", "medium", "high", "critical"] = Field(
+        description="Severity of the compliance issue, or none when no issue exists"
+    )
+    violation_description: str = Field(
+        description="Specific compliance violation, or 'No violation detected'"
+    )
+    timestamp_evidence: list[str] = Field(
+        description="Transcript timestamps supporting the compliance decision"
+    )
     reasoning: str = Field(description="Explanation for the scores and flag")
 
 
@@ -103,6 +119,9 @@ class CallReportQA(BaseModel):
     communication_score: float | str = Field(description="Communication score")
     professionalism_score: float | str = Field(description="Professionalism score")
     compliance_flag: bool | str = Field(description="Whether compliance issues were detected")
+    compliance_severity: str = Field(description="Compliance severity")
+    violation_description: str = Field(description="Compliance violation description")
+    timestamp_evidence: list[str] = Field(description="Timestamped evidence")
 
 
 class CallReport(BaseModel):

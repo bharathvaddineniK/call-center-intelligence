@@ -35,7 +35,7 @@ def test_route_after_qa_normal():
         {
             "error": None,
             "compliance_flag": False,
-            "overall_score": 95,
+            "overall_score": 4.5,
         }
     )
 
@@ -48,7 +48,7 @@ def test_route_after_qa_supervisor():
         {
             "error": None,
             "compliance_flag": True,
-            "overall_score": 35,
+            "overall_score": 2.5,
         }
     )
 

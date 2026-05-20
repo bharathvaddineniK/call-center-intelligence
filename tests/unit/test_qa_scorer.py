@@ -32,7 +32,7 @@ SCORE_FIELDS = (
     "professionalism_score",
     "overall_score",
 )
-MAX_REASONABLE_SCORE_DELTA = 10
+MAX_REASONABLE_SCORE_DELTA = 1
 
 _cached_result = None
 _cached_repeat_result = None
@@ -59,8 +59,8 @@ def get_repeat_result() -> QAResult:
 
 
 def assert_valid_score(value: float) -> None:
-    """Assert that a QA score is inside the supported 0-100 range."""
-    assert 0 <= value <= 100
+    """Assert that a QA score is inside the supported 1-5 range."""
+    assert 1 <= value <= 5
 
 
 def test_score_returns_qa_result():
@@ -72,6 +72,9 @@ def test_score_returns_qa_result():
         assert_valid_score(getattr(result, field_name))
 
     assert isinstance(result.compliance_flag, bool)
+    assert result.compliance_severity in {"none", "low", "medium", "high", "critical"}
+    assert isinstance(result.violation_description, str)
+    assert isinstance(result.timestamp_evidence, list)
     assert result.reasoning
 
 

@@ -581,6 +581,10 @@ APP_CSS = """
     gap: 10px;
 }
 
+.compliance-evidence-grid {
+    margin-top: 10px;
+}
+
 .summary-card,
 .qa-card {
     border: 1px solid #edf1f5;
@@ -1136,6 +1140,29 @@ def format_qa_scorecard_html(result: dict) -> str:
         )
         for label, value in fields
     )
+    evidence = result.get("timestamp_evidence") or []
+    evidence_text = (
+        ", ".join(str(item) for item in evidence)
+        if evidence
+        else "No timestamp evidence"
+    )
+    compliance_details = [
+        ("Severity", result.get("compliance_severity") or "none"),
+        (
+            "Violation",
+            result.get("violation_description") or "No violation detected",
+        ),
+        ("Evidence", evidence_text),
+    ]
+    compliance_cards = "".join(
+        (
+            "<div class='summary-card summary-card-wide'>"
+            f"<p class='summary-label'>{escape(label)}</p>"
+            f"<p class='summary-value'>{escape(str(value))}</p>"
+            "</div>"
+        )
+        for label, value in compliance_details
+    )
 
     return (
         "<div class='content-panel'>"
@@ -1144,6 +1171,7 @@ def format_qa_scorecard_html(result: dict) -> str:
         "</div>"
         "<div class='content-panel-body'>"
         f"<div class='qa-grid'>{cards}</div>"
+        f"<div class='summary-grid compliance-evidence-grid'>{compliance_cards}</div>"
         "<div class='usage-inline'>"
         f"{format_usage_label(usage)} QA tokens: input {usage['qa_input']:,}, "
         f"output {usage['qa_output']:,}, "
@@ -1497,6 +1525,9 @@ def build_history_result(call, report) -> dict:
         "call_purpose": call.call_purpose,
         "agent_behavior": summary_data.get("agent_behavior") or call.agent_behavior,
         "compliance_flag": report.compliance_flag if report else None,
+        "compliance_severity": report.compliance_severity if report else None,
+        "violation_description": report.violation_description if report else None,
+        "timestamp_evidence": report.timestamp_evidence if report else [],
         "overall_score": report.overall_score if report else None,
         "qa_scores": build_history_qa_scores(report),
     }

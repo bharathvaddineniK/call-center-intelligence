@@ -56,6 +56,13 @@ def build_call_report(call: Call, report: Report, summary: SummaryResult) -> Cal
             communication_score=_get_value(report, "communication_score"),
             professionalism_score=_get_value(report, "professionalism_score"),
             compliance_flag=_get_value(report, "compliance_flag"),
+            compliance_severity=_get_value(report, "compliance_severity", "none"),
+            violation_description=_get_value(
+                report,
+                "violation_description",
+                "No violation detected",
+            ),
+            timestamp_evidence=_get_value(report, "timestamp_evidence", []),
         ),
     )
 
@@ -105,6 +112,20 @@ def generate_pdf(call: Call, report: Report, summary: SummaryResult) -> bytes:
             styles["BodyText"],
         ),
         Paragraph(f"Compliance Flag: {_get_value(report, 'compliance_flag')}", styles["BodyText"]),
+        Paragraph(
+            f"Compliance Severity: {_get_value(report, 'compliance_severity', 'none')}",
+            styles["BodyText"],
+        ),
+        Paragraph(
+            "Violation Description: "
+            f"{_get_value(report, 'violation_description', 'No violation detected')}",
+            styles["BodyText"],
+        ),
+        Paragraph(
+            "Timestamp Evidence: "
+            f"{_format_list(_get_value(report, 'timestamp_evidence', []))}",
+            styles["BodyText"],
+        ),
         Spacer(1, SPACER_HEIGHT),
         Paragraph("Key Entities", styles["Heading2"]),
         Paragraph(_format_list(_get_value(summary, "key_entities", [])), styles["BodyText"]),

@@ -59,6 +59,9 @@ class Report(Base):
     professionalism_score: Mapped[float] = mapped_column(Float)
     summary: Mapped[str] = mapped_column(Text)
     compliance_flag: Mapped[bool] = mapped_column(Boolean)
+    compliance_severity: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    violation_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    timestamp_evidence: Mapped[list | None] = mapped_column(JSON, nullable=True)
     pdf_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     report_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(

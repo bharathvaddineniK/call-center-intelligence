@@ -15,43 +15,52 @@ def test_pipeline_state():
     assert state.get("file_hash") is None, "File hash should be none"
 
 def test_qa_result():
-    """Test that QAResult raises a validation error if a score is outside 0-100"""
+    """Test that QAResult validates 1-5 rubric scores."""
 
     qa = QAResult(
-        empathy_score=25,
-        resolution_score=24,
-        compliance_score=99,
-        communication_score=75,
-        professionalism_score=44.5,
-        overall_score=55,
+        empathy_score=4,
+        resolution_score=3,
+        compliance_score=5,
+        communication_score=4,
+        professionalism_score=4,
+        overall_score=4,
         compliance_flag=True,
-        reasoning="some reasoning"
+        compliance_severity="medium",
+        violation_description="Caller hold disclosure was incomplete",
+        timestamp_evidence=["00:42"],
+        reasoning="some reasoning",
     )
 
-    assert qa.overall_score == 55   
+    assert qa.overall_score == 4   
 
     with pytest.raises(ValidationError):
          QAResult(
-            empathy_score=101,
-            resolution_score=24,
-            compliance_score=99,
-            communication_score=75,
-            professionalism_score=44.5,
-            overall_score=55,
+            empathy_score=6,
+            resolution_score=3,
+            compliance_score=5,
+            communication_score=4,
+            professionalism_score=4,
+            overall_score=4,
             compliance_flag=True,
-            reasoning="some reasoning"
+            compliance_severity="medium",
+            violation_description="Caller hold disclosure was incomplete",
+            timestamp_evidence=["00:42"],
+            reasoning="some reasoning",
         )
     
     with pytest.raises(ValidationError):
          QAResult(
-            empathy_score=-7,
-            resolution_score=24,
-            compliance_score=99,
-            communication_score=75,
-            professionalism_score=44.5,
-            overall_score=55,
+            empathy_score=0,
+            resolution_score=3,
+            compliance_score=5,
+            communication_score=4,
+            professionalism_score=4,
+            overall_score=4,
             compliance_flag=True,
-            reasoning="some reasoning"
+            compliance_severity="medium",
+            violation_description="Caller hold disclosure was incomplete",
+            timestamp_evidence=["00:42"],
+            reasoning="some reasoning",
         )
     
 def test_transcription_segment():

@@ -239,6 +239,9 @@ def summarize_qa_node(state: PipelineState) -> dict:
             },
             "overall_score": qa_score.overall_score,
             "compliance_flag": qa_score.compliance_flag,
+            "compliance_severity": qa_score.compliance_severity,
+            "violation_description": qa_score.violation_description,
+            "timestamp_evidence": qa_score.timestamp_evidence,
             "summary_json": summary.model_dump_json(),
             "token_usage": {
                 "summary": summary_usage,
@@ -269,6 +272,9 @@ def report_node(state: PipelineState) -> dict:
         qa_scores = state["qa_scores"]
         overall_score = state["overall_score"]
         compliance_flag = state["compliance_flag"]
+        compliance_severity = state.get("compliance_severity")
+        violation_description = state.get("violation_description")
+        timestamp_evidence = state.get("timestamp_evidence") or []
         summary_json = state["summary_json"]
         call_status = (
             CALL_STATUS_FLAGGED
@@ -325,6 +331,9 @@ def report_node(state: PipelineState) -> dict:
             communication_score=qa_scores["communication_score"],
             professionalism_score=qa_scores["professionalism_score"],
             compliance_flag=compliance_flag,
+            compliance_severity=compliance_severity,
+            violation_description=violation_description,
+            timestamp_evidence=timestamp_evidence,
         )
 
         config.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -347,6 +356,9 @@ def report_node(state: PipelineState) -> dict:
             compliance_flag=compliance_flag,
             pdf_path=str(report_path),
             report_json=json_str,
+            compliance_severity=compliance_severity,
+            violation_description=violation_description,
+            timestamp_evidence=timestamp_evidence,
         )
         cleanup_old_files(
             str(config.AUDIO_DIR),

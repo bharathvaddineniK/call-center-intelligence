@@ -160,6 +160,9 @@ def save_report(
     compliance_flag: bool,
     pdf_path: str,
     report_json: str | None = None,
+    compliance_severity: str | None = None,
+    violation_description: str | None = None,
+    timestamp_evidence: list[str] | None = None,
 ) -> int:
     """Save or update a report record and return the report id."""
 
@@ -178,6 +181,9 @@ def save_report(
         report.professionalism_score = professionalism_score
         report.summary = summary
         report.compliance_flag = compliance_flag
+        report.compliance_severity = compliance_severity
+        report.violation_description = violation_description
+        report.timestamp_evidence = timestamp_evidence
         report.pdf_path = pdf_path
         report.report_json = report_json
 

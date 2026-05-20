@@ -62,6 +62,9 @@ def test_save_report_returns_id():
         compliance_flag=True,
         pdf_path="reports/call.pdf",
         report_json='{"summary": "The agent helped the caller."}',
+        compliance_severity="low",
+        violation_description="Minor disclosure gap",
+        timestamp_evidence=["00:10"],
     )
 
     assert isinstance(report_id, int)
@@ -69,6 +72,9 @@ def test_save_report_returns_id():
 
     report = get_report_by_call_id(call_id)
     assert report.report_json == '{"summary": "The agent helped the caller."}'
+    assert report.compliance_severity == "low"
+    assert report.violation_description == "Minor disclosure gap"
+    assert report.timestamp_evidence == ["00:10"]
 
 
 def test_get_call_by_id_returns_correct_call():
@@ -205,12 +211,16 @@ def test_get_report_by_call_id():
         summary="The agent helped the caller.",
         compliance_flag=True,
         pdf_path="reports/call.pdf",
+        compliance_severity="none",
+        violation_description="No violation detected",
+        timestamp_evidence=[],
     )
 
     report = get_report_by_call_id(call_id)
 
     assert report.call_id == call_id
     assert report.summary == "The agent helped the caller."
+    assert report.compliance_severity == "none"
 
 
 def test_save_report_updates_existing_report_for_call():
@@ -229,6 +239,9 @@ def test_save_report_updates_existing_report_for_call():
         compliance_flag=True,
         pdf_path="reports/old-call.pdf",
         report_json='{"version": 1}',
+        compliance_severity="low",
+        violation_description="Old issue",
+        timestamp_evidence=["00:01"],
     )
     second_report_id = save_report(
         call_id=call_id,
@@ -242,6 +255,9 @@ def test_save_report_updates_existing_report_for_call():
         compliance_flag=False,
         pdf_path="reports/new-call.pdf",
         report_json='{"version": 2}',
+        compliance_severity="none",
+        violation_description="No violation detected",
+        timestamp_evidence=[],
     )
 
     report = get_report_by_call_id(call_id)
@@ -251,6 +267,9 @@ def test_save_report_updates_existing_report_for_call():
     assert report.summary == "The updated report summary."
     assert report.pdf_path == "reports/new-call.pdf"
     assert report.report_json == '{"version": 2}'
+    assert report.compliance_severity == "none"
+    assert report.violation_description == "No violation detected"
+    assert report.timestamp_evidence == []
 
 
 def test_get_recent_audit_logs():

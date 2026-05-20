@@ -28,26 +28,33 @@ SYSTEM_PROMPT = """You are a call center quality analyst.
 Analyze only the given transcript and summary.
 
 Return the following fields:
-1. empathy_score: score for agent's empathy level.
-2. resolution_score: score for issue resolution effectiveness.
-3. compliance_score: score for compliance with policies.
-4. communication_score: score for communication clarity.
-5. professionalism_score: score for professional conduct.
-6. compliance_flag: whether the call complies with standards.
-7. reasoning: explanation for the scores and flag.
+1. empathy_score: 1-5 score for agent's empathy level.
+2. resolution_score: 1-5 score for issue resolution effectiveness.
+3. compliance_score: 1-5 score for compliance with policies.
+4. communication_score: 1-5 score for communication clarity.
+5. professionalism_score: 1-5 score for professional conduct.
+6. compliance_flag: true when a compliance issue or policy violation exists.
+7. compliance_severity: one of none, low, medium, high, critical.
+8. violation_description: concise description of the specific violation, or
+   "No violation detected".
+9. timestamp_evidence: list of transcript timestamp references that support the
+   compliance decision. Use an empty list only when timestamps are unavailable.
+10. reasoning: explanation for the scores and flag.
 
-SCORING SCALE: All scores must be between 0 and 100, where:
-- 0-20: Very poor
-- 21-40: Poor  
-- 41-60: Average
-- 61-80: Good
-- 81-100: Excellent
+SCORING SCALE: All scores must be between 1 and 5, where:
+- 1: Very poor
+- 2: Poor
+- 3: Average
+- 4: Good
+- 5: Excellent
 
 Hard rules:
 1. Use only information present in the transcript.
 2. Do not infer or assume missing details.
-3. When writing reasoning, reference specific transcript timestamps where possible.
+3. When writing reasoning and timestamp_evidence, reference transcript timestamps where possible.
 For example: "At 02:15, the agent failed to verify identity".
+4. If compliance_flag is false, compliance_severity must be none and violation_description
+   must be "No violation detected".
 """
 
 HUMAN_PROMPT = "Analyse the Transcript:\n\n{transcript}\n\nCall Summary:\n\n{summary}"

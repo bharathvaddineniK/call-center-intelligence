@@ -29,6 +29,9 @@ def create_mock_report():
     report.communication_score = 88.0
     report.professionalism_score = 92.0
     report.compliance_flag = True
+    report.compliance_severity = "medium"
+    report.violation_description = "Caller verification was incomplete"
+    report.timestamp_evidence = ["00:15"]
     return report
 
 
@@ -75,6 +78,9 @@ def test_generate_json_returns_valid_json():
     assert parsed_result["call"]["filename"] == "call_114.mp3"
     assert parsed_result["summary"]["summary"] == "The caller needed help with internet service."
     assert parsed_result["qa"]["overall_score"] == 85.0
+    assert parsed_result["qa"]["compliance_severity"] == "medium"
+    assert parsed_result["qa"]["violation_description"] == "Caller verification was incomplete"
+    assert parsed_result["qa"]["timestamp_evidence"] == ["00:15"]
 
 
 def test_build_call_report_returns_pydantic_model():

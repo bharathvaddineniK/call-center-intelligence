@@ -47,21 +47,24 @@ def create_summary_result() -> SummaryResult:
     )
 
 
-def create_qa_result(overall_score: float = 85.0) -> QAResult:
+def create_qa_result(overall_score: float = 4.2) -> QAResult:
     """Create a QA result for mocked LLM tests."""
     return QAResult(
-        empathy_score=90.0,
-        resolution_score=80.0,
-        compliance_score=85.0,
-        communication_score=88.0,
-        professionalism_score=92.0,
+        empathy_score=4.5,
+        resolution_score=4.0,
+        compliance_score=4.0,
+        communication_score=4.5,
+        professionalism_score=4.5,
         overall_score=overall_score,
         compliance_flag=True,
+        compliance_severity="medium",
+        violation_description="Caller verification was incomplete",
+        timestamp_evidence=["00:15"],
         reasoning="The agent helped the caller.",
     )
 
 
-def mock_llm_nodes(monkeypatch, overall_score: float = 85.0):
+def mock_llm_nodes(monkeypatch, overall_score: float = 4.2):
     """Mock summary and QA scoring calls."""
     monkeypatch.setattr(
         nodes,
@@ -122,8 +125,10 @@ def test_summarize_qa_node_success(monkeypatch):
     result = nodes.summarize_qa_node({"transcript": "The caller needs help."})
 
     assert result["summary"] == "The caller needed help with billing."
-    assert result["overall_score"] == 85.0
-    assert result["qa_scores"]["empathy_score"] == 90.0
+    assert result["overall_score"] == 4.2
+    assert result["qa_scores"]["empathy_score"] == 4.5
+    assert result["compliance_severity"] == "medium"
+    assert result["timestamp_evidence"] == ["00:15"]
     assert result["summary_json"]
 
 
@@ -146,14 +151,17 @@ def test_report_node_success(monkeypatch, tmp_path):
             "agent_behavior": "The agent was helpful.",
             "summary": summary.summary,
             "qa_scores": {
-                "empathy_score": 90.0,
-                "resolution_score": 80.0,
-                "compliance_score": 85.0,
-                "communication_score": 88.0,
-                "professionalism_score": 92.0,
+                "empathy_score": 4.5,
+                "resolution_score": 4.0,
+                "compliance_score": 4.0,
+                "communication_score": 4.5,
+                "professionalism_score": 4.5,
             },
-            "overall_score": 85.0,
+            "overall_score": 4.2,
             "compliance_flag": True,
+            "compliance_severity": "medium",
+            "violation_description": "Caller verification was incomplete",
+            "timestamp_evidence": ["00:15"],
             "summary_json": summary.model_dump_json(),
             "caller_id": "caller@example.com",
             "department": "Emergency Dispatch",
