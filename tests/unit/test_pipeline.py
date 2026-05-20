@@ -35,6 +35,7 @@ def test_route_after_qa_normal():
         {
             "error": None,
             "compliance_flag": False,
+            "compliance_severity": "none",
             "overall_score": 4.5,
         }
     )
@@ -43,12 +44,12 @@ def test_route_after_qa_normal():
 
 
 def test_route_after_qa_supervisor():
-    """Route to supervisor when compliance flag is set and score is low."""
+    """Route to supervisor when compliance severity is critical."""
     result = route_after_qa(
         {
             "error": None,
-            "compliance_flag": True,
-            "overall_score": 2.5,
+            "compliance_severity": "critical",
+            "overall_score": 4.5,
         }
     )
 

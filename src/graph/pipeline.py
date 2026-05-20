@@ -105,7 +105,7 @@ def route_after_qa(state: PipelineState) -> str:
     """Route to supervisor, error, or report after QA scoring."""
     if state.get("error"):
         return "error"
-    if state.get("compliance_flag") and state.get("overall_score", 5) < 3:
+    if state.get("compliance_severity") == "critical":
         return "supervisor"
     return "next_node"
 
