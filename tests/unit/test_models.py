@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from src.pipeline_models import PipelineState, QAResult, TranscriptionSegment
+from src.pipeline_models import PipelineState, QAResult, SummaryResult, TranscriptionSegment
 
 
 def test_pipeline_state():
@@ -98,6 +98,42 @@ def test_qa_result_normalizes_provider_variants():
     assert qa.compliance_severity == "critical"
     assert qa.violation_description == "Compliance issue detected"
     assert qa.timestamp_evidence == ["02:15"]
+
+
+def test_summary_result_normalizes_provider_variants():
+    """Normalize common structured-output differences across LLM providers."""
+    summary = SummaryResult(
+        summary="Caller was rescued.",
+        sentiment="Neutral",
+        agent_behavior="Helpful",
+        key_entities="Elizabeth",
+        call_purpose="Emergency assistance",
+        key_discussion_points="Vehicle in water",
+        action_items="Dispatch emergency services",
+        resolution_status="Resolved",
+        sentiment_trajectory="Frustrated -> Relieved",
+    )
+
+    assert summary.sentiment == "neutral"
+    assert summary.key_entities == ["Elizabeth"]
+    assert summary.key_discussion_points == ["Vehicle in water"]
+    assert summary.action_items == ["Dispatch emergency services"]
+    assert summary.resolution_status == "resolved"
+
+
+def test_summary_result_defaults_provider_prone_fields():
+    """Allow LLM providers to omit summary fields that can be safely defaulted."""
+    summary = SummaryResult()
+
+    assert summary.summary == ""
+    assert summary.sentiment == "neutral"
+    assert summary.agent_behavior == ""
+    assert summary.key_entities == []
+    assert summary.call_purpose == ""
+    assert summary.key_discussion_points == []
+    assert summary.action_items == []
+    assert summary.resolution_status == "unresolved"
+    assert summary.sentiment_trajectory == ""
 
 
 def test_transcription_segment():

@@ -97,21 +97,66 @@ class AudioMetadata(BaseModel):
 
 
 class SummaryResult(BaseModel):
-    summary: str = Field(description="Text summary of the call")
-    sentiment: str = Field(description="Overall sentiment: positive/negative/neutral")
-    agent_behavior: str = Field(description="How the agent handled the call")
-    key_entities: list[str] = Field(description="List of key entities extracted from the call")
-    call_purpose: str = Field(description="The purpose of the call")
-    key_discussion_points: list[str] = Field(description="List of 3 to 7 key points discussed")
+    summary: str = Field(default="", description="Text summary of the call")
+    sentiment: str = Field(
+        default="neutral",
+        description="Overall sentiment: positive/negative/neutral",
+    )
+    agent_behavior: str = Field(default="", description="How the agent handled the call")
+    key_entities: list[str] = Field(
+        default_factory=list,
+        description="List of key entities extracted from the call",
+    )
+    call_purpose: str = Field(default="", description="The purpose of the call")
+    key_discussion_points: list[str] = Field(
+        default_factory=list,
+        description="List of 3 to 7 key points discussed",
+    )
     action_items: list[str] = Field(
-        description="List of actions to be taken and the respective owner"
+        default_factory=list, description="List of actions to be taken and the respective owner"
     )
-    resolution_status: Literal["resolved", "unresolved", "escalated"] = Field(
-        description="Resolution of the call"
-    )
+    resolution_status: str = Field(default="unresolved", description="Resolution of the call")
     sentiment_trajectory: str = Field(
-        description="What's the trajectory of sentiment e.g: Frustrated → Satisfied"
+        default="", description="What's the trajectory of sentiment e.g: Frustrated → Satisfied"
     )
+
+    @field_validator("sentiment", mode="before")
+    @classmethod
+    def normalize_sentiment(cls, value):
+        """Normalize provider sentiment casing and fall back to neutral."""
+        if value is None or value == "":
+            return "neutral"
+
+        normalized = str(value).strip().lower()
+        if normalized in {"positive", "negative", "neutral"}:
+            return normalized
+        return "neutral"
+
+    @field_validator("resolution_status", mode="before")
+    @classmethod
+    def normalize_resolution_status(cls, value):
+        """Normalize provider variants without exposing a strict enum in tool schema."""
+        if value is None or value == "":
+            return "unresolved"
+
+        normalized = str(value).strip().lower().replace("-", "_").replace(" ", "_")
+        if normalized in {"resolved", "complete", "completed", "closed"}:
+            return "resolved"
+        if normalized in {"escalated", "escalate", "transferred"}:
+            return "escalated"
+        if normalized in {"unresolved", "not_resolved", "open", "pending"}:
+            return "unresolved"
+        return "unresolved"
+
+    @field_validator("key_entities", "key_discussion_points", "action_items", mode="before")
+    @classmethod
+    def normalize_summary_list(cls, value):
+        """Accept a single string for providers that do not emit list syntax."""
+        if value is None or value == "":
+            return []
+        if isinstance(value, str):
+            return [value]
+        return value
 
 
 class QAResult(BaseModel):
