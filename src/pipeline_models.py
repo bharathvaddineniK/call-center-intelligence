@@ -21,6 +21,11 @@ class PipelineState(TypedDict):
     sentiment: str | None
     call_purpose: str | None
     agent_behavior: str | None
+    key_entities: list[str] | None
+    key_discussion_points: list[str] | None
+    action_items: list[str] | None
+    resolution_status: str | None
+    sentiment_trajectory: str | None
     qa_scores: dict[str, float] | None
     overall_score: float | None
     compliance_flag: bool | None
