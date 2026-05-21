@@ -1,3 +1,10 @@
+---
+title: Call Center Intelligence
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # Call Center Intelligence
 
 Call Center Intelligence is a LangGraph-based operations console for analyzing support and
