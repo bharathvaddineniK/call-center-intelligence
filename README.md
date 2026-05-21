@@ -7,6 +7,10 @@ pinned: false
 
 # Call Center Intelligence
 
+## Live Demo
+
+[https://bkumarvaddineni-call-center-intelligence.hf.space](https://bkumarvaddineni-call-center-intelligence.hf.space)
+
 Call Center Intelligence is a LangGraph-based operations console for analyzing support and
 emergency-style call audio. It validates and transcribes audio, blocks prompt-injection attempts,
 redacts PII, summarizes the call, scores agent quality, persists call history, writes audit
