@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal, TypedDict
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class PipelineState(TypedDict):
@@ -128,18 +128,61 @@ class QAResult(BaseModel):
         description="1-5 score for communication clarity",
     )
     professionalism_score: float = Field(ge=1, le=5, description="1-5 score for conduct")
-    overall_score: float = Field(ge=1, le=5, description="Overall 1-5 QA score")
-    compliance_flag: bool = Field(description="Whether the call complies with standards")
+    overall_score: float = Field(
+        default=0.0,
+        ge=0,
+        le=5,
+        description="Overall 1-5 QA score — recomputed deterministically from dimension scores",
+    )
+    compliance_flag: bool = Field(
+        default=False,
+        description="Whether a compliance issue or policy violation exists",
+    )
     compliance_severity: Literal["none", "low", "medium", "high", "critical"] = Field(
-        description="Severity of the compliance issue, or none when no issue exists"
+        default="none", description="Severity of the compliance issue, or none when no issue exists"
     )
     violation_description: str = Field(
-        description="Specific compliance violation, or 'No violation detected'"
+        default="No violation detected",
+        description="Specific compliance violation, or 'No violation detected'",
     )
     timestamp_evidence: list[str] = Field(
-        description="Transcript timestamps supporting the compliance decision"
+        default_factory=list, description="Transcript timestamps supporting the compliance decision"
     )
-    reasoning: str = Field(description="Explanation for the scores and flag")
+    reasoning: str = Field(default="", description="Explanation for the scores and flag")
+
+    @field_validator("compliance_severity", mode="before")
+    @classmethod
+    def normalize_compliance_severity(cls, value):
+        """Accept provider variants like uppercase or blank severity labels."""
+        if value is None or value == "":
+            return "none"
+        return str(value).strip().lower()
+
+    @field_validator("timestamp_evidence", mode="before")
+    @classmethod
+    def normalize_timestamp_evidence(cls, value):
+        """Accept a single timestamp string from providers that skip list formatting."""
+        if value is None or value == "":
+            return []
+        if isinstance(value, str):
+            return [value]
+        return value
+
+    @model_validator(mode="after")
+    def normalize_compliance_fields(self):
+        """Keep compliance metadata consistent when providers omit or contradict fields."""
+        if not self.compliance_flag:
+            self.compliance_severity = "none"
+            self.violation_description = "No violation detected"
+            return self
+
+        if self.compliance_severity == "none":
+            self.compliance_severity = "low"
+
+        if not self.violation_description.strip():
+            self.violation_description = "Compliance issue detected"
+
+        return self
 
 
 class CallReportCall(BaseModel):

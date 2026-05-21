@@ -63,6 +63,43 @@ def test_qa_result():
         )
 
 
+def test_qa_result_defaults_provider_prone_fields():
+    """Allow LLM providers to omit fields that are normalized downstream."""
+    qa = QAResult(
+        empathy_score=4,
+        resolution_score=4,
+        compliance_score=5,
+        communication_score=4,
+        professionalism_score=5,
+    )
+
+    assert qa.overall_score == 0.0
+    assert qa.compliance_flag is False
+    assert qa.compliance_severity == "none"
+    assert qa.violation_description == "No violation detected"
+    assert qa.timestamp_evidence == []
+    assert qa.reasoning == ""
+
+
+def test_qa_result_normalizes_provider_variants():
+    """Normalize common structured-output differences across LLM providers."""
+    qa = QAResult(
+        empathy_score=4,
+        resolution_score=4,
+        compliance_score=2,
+        communication_score=4,
+        professionalism_score=4,
+        compliance_flag=True,
+        compliance_severity="CRITICAL",
+        violation_description="",
+        timestamp_evidence="02:15",
+    )
+
+    assert qa.compliance_severity == "critical"
+    assert qa.violation_description == "Compliance issue detected"
+    assert qa.timestamp_evidence == ["02:15"]
+
+
 def test_transcription_segment():
     """Test that TranscriptionSegment accepts a valid segment"""
     segment = TranscriptionSegment(
