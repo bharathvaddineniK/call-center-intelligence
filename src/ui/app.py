@@ -412,6 +412,15 @@ APP_CSS = """
     gap: 8px !important;
 }
 
+.audio-upload-preview {
+    min-height: 260px;
+}
+
+.audio-upload-preview audio,
+.audio-upload-preview canvas {
+    width: 100% !important;
+}
+
 .report-download {
     min-height: 40px !important;
 }
@@ -2085,7 +2094,19 @@ with gr.Blocks() as app:
                         </div>
                         """
                     )
-                    audio_input = gr.Audio(type="filepath", label="Audio file")
+                    audio_input = gr.Audio(
+                        type="filepath",
+                        label="Audio file",
+                        sources=["upload"],
+                        interactive=True,
+                        editable=True,
+                        waveform_options=gr.WaveformOptions(
+                            waveform_color="#d8dee8",
+                            waveform_progress_color="#256f63",
+                            trim_region_color="#5b5bd6",
+                        ),
+                        elem_classes=["audio-upload-preview"],
+                    )
                     caller_id_input = gr.Textbox(
                         label="Caller ID (optional)",
                         placeholder="Caller reference, phone, or email",
