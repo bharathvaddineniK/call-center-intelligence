@@ -26,6 +26,7 @@ from src.database.repository import (
     get_table_counts,
 )
 from src.graph.pipeline import pipeline
+from src.services.audio.transcriber import preload_whisper_model
 from src.services.audio.validator import validate_audio
 
 AUDIT_LOG_HEADERS = ["Time", "Severity", "Event", "Call ID", "Message"]
@@ -2337,4 +2338,5 @@ app.queue()
 
 
 if __name__ == "__main__":
+    preload_whisper_model()
     app.launch(theme=theme, css=APP_CSS)

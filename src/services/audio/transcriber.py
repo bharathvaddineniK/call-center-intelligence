@@ -39,6 +39,11 @@ def _get_whisper_model() -> WhisperModel:
     return _whisper_model
 
 
+def preload_whisper_model() -> None:
+    """Load the faster-whisper model into memory at startup."""
+    _get_whisper_model()
+
+
 @traceable
 def get_transcription(file_path: str) -> TranscriptionResult:
     """Return a cached transcript, or transcribe with Groq and fall back to Whisper.
