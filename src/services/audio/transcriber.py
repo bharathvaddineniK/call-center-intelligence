@@ -1,9 +1,7 @@
 import logging
 import statistics
 from collections.abc import Iterable
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 import torch
 from faster_whisper import WhisperModel
@@ -11,6 +9,7 @@ from groq import Groq
 from langsmith import traceable
 
 import config
+from src.pipeline_models import TranscriptionResult
 from src.services.audio.cache import compute_hash, get_cached_transcript, save_to_cache
 from src.services.audio.cleaner import clean_transcript
 
@@ -38,19 +37,6 @@ def _get_whisper_model() -> WhisperModel:
             compute_type=compute_type,
         )
     return _whisper_model
-
-
-@dataclass
-class TranscriptionResult:
-    """Normalized transcription output shared by cache, Groq, and Whisper paths."""
-
-    text: str
-    segments: list[dict[str, Any]]
-    confidence: float
-    speaker_count: int
-    source: str
-    duration: float
-    file_hash: str = ""
 
 
 @traceable

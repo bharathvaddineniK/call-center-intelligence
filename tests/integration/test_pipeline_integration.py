@@ -8,8 +8,7 @@ from src.database.models import (
 from src.database.repository import get_call_by_id
 from src.graph import nodes
 from src.graph.pipeline import get_graph
-from src.pipeline_models import QAResult, SummaryResult
-from src.services.audio.transcriber import TranscriptionResult
+from src.pipeline_models import QAResult, SummaryResult, TranscriptionResult
 
 
 def create_transcription_result(

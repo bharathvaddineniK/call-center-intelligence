@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Literal, TypedDict
 
 from pydantic import BaseModel, Field
@@ -44,6 +45,55 @@ class TranscriptionSegment(BaseModel):
     text: str = Field(description="Transcribed text for this segment")
     speaker: str | None = Field(None, description="Speaker ID if available")
     confidence: float | None = Field(None, description="Confidence score of the transcription")
+
+
+class SpeakerSegment(BaseModel):
+    start: float = Field(description="Start time of the speaker segment in seconds")
+    end: float = Field(description="End time of the speaker segment in seconds")
+    text: str = Field(description="Transcript text for this speaker segment")
+    speaker: str | None = Field(None, description="Assigned speaker role or ID")
+    confidence: float | None = Field(None, description="Confidence score for this segment")
+
+
+class ValidationResult(BaseModel):
+    is_valid: bool = Field(description="Whether the audio file passed intake validation")
+    error: str | None = Field(None, description="Validation failure reason, if any")
+    duration: float | None = Field(None, description="Audio duration in seconds")
+    file_size_mb: float | None = Field(None, description="Audio file size in megabytes")
+
+
+class TranscriptionResult(BaseModel):
+    text: str = Field(description="Full cleaned transcript text")
+    segments: list[dict[str, Any]] = Field(description="Timestamped transcript segments")
+    confidence: float = Field(description="Overall transcription confidence")
+    speaker_count: int = Field(description="Number of detected speakers")
+    source: str = Field(description="Transcription source, such as cache, Groq, or Whisper")
+    duration: float = Field(description="Audio duration in seconds")
+    file_hash: str = Field(default="", description="Content hash used for transcript cache lookup")
+
+
+class ComplianceFlag(BaseModel):
+    severity: Literal["none", "low", "medium", "high", "critical"] = Field(
+        description="Severity of the compliance issue"
+    )
+    description: str = Field(description="Compliance finding or violation description")
+    timestamp_reference: str | None = Field(
+        None,
+        description="Transcript timestamp supporting the compliance finding",
+    )
+
+
+class PipelineError(BaseModel):
+    node_name: str = Field(description="Pipeline node where the error occurred")
+    message: str = Field(description="Error message")
+    timestamp: datetime = Field(description="Time the error was recorded")
+
+
+class AudioMetadata(BaseModel):
+    filename: str = Field(description="Audio filename")
+    duration: float | None = Field(None, description="Audio duration in seconds")
+    size_mb: float | None = Field(None, description="Audio file size in megabytes")
+    format: str = Field(description="Detected audio format")
 
 
 class SummaryResult(BaseModel):

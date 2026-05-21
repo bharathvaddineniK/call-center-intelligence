@@ -1,8 +1,5 @@
-from src.services.audio.transcriber import (
-    TranscriptionResult,
-    _calculate_confidence,
-    get_transcription,
-)
+from src.pipeline_models import TranscriptionResult
+from src.services.audio.transcriber import _calculate_confidence, get_transcription
 
 
 def test_transcription_groq():

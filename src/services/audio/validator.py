@@ -1,22 +1,12 @@
 import wave
-from dataclasses import dataclass
 from pathlib import Path
 
 from mutagen import File as MutagenFile
 
 import config
+from src.pipeline_models import ValidationResult
 
 SUPPORTED_FORMATS_DISPLAY = "WAV, MP3, FLAC, M4A"
-
-
-@dataclass
-class ValidationResult:
-    """Result of validating an audio file before transcription."""
-
-    is_valid: bool
-    error: str | None
-    duration: float | None
-    file_size_mb: float | None
 
 
 def _detect_format_by_magic_bytes(file_path: Path) -> str | None:
