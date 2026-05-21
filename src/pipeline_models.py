@@ -97,27 +97,24 @@ class AudioMetadata(BaseModel):
 
 
 class SummaryResult(BaseModel):
-    summary: str = Field(default="", description="Text summary of the call")
+    summary: str = Field(description="Text summary of the call")
     sentiment: str = Field(
-        default="neutral",
         description="Overall sentiment: positive/negative/neutral",
     )
-    agent_behavior: str = Field(default="", description="How the agent handled the call")
+    agent_behavior: str = Field(description="How the agent handled the call")
     key_entities: list[str] = Field(
-        default_factory=list,
         description="List of key entities extracted from the call",
     )
-    call_purpose: str = Field(default="", description="The purpose of the call")
+    call_purpose: str = Field(description="The purpose of the call")
     key_discussion_points: list[str] = Field(
-        default_factory=list,
         description="List of 3 to 7 key points discussed",
     )
     action_items: list[str] = Field(
-        default_factory=list, description="List of actions to be taken and the respective owner"
+        description="List of actions to be taken and the respective owner"
     )
-    resolution_status: str = Field(default="unresolved", description="Resolution of the call")
+    resolution_status: str = Field(description="Resolution of the call")
     sentiment_trajectory: str = Field(
-        default="", description="What's the trajectory of sentiment e.g: Frustrated → Satisfied"
+        description="What's the trajectory of sentiment e.g: Frustrated → Satisfied"
     )
 
     @field_validator("sentiment", mode="before")

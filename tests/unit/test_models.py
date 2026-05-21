@@ -121,19 +121,15 @@ def test_summary_result_normalizes_provider_variants():
     assert summary.resolution_status == "resolved"
 
 
-def test_summary_result_defaults_provider_prone_fields():
-    """Allow LLM providers to omit summary fields that can be safely defaulted."""
-    summary = SummaryResult()
+def test_summary_result_requires_core_fields_without_strict_enums():
+    """Require summary fields while allowing provider casing variants."""
+    with pytest.raises(ValidationError):
+        SummaryResult()
 
-    assert summary.summary == ""
-    assert summary.sentiment == "neutral"
-    assert summary.agent_behavior == ""
-    assert summary.key_entities == []
-    assert summary.call_purpose == ""
-    assert summary.key_discussion_points == []
-    assert summary.action_items == []
-    assert summary.resolution_status == "unresolved"
-    assert summary.sentiment_trajectory == ""
+    schema = SummaryResult.model_json_schema()
+
+    assert "resolution_status" in schema["required"]
+    assert "enum" not in schema["properties"]["resolution_status"]
 
 
 def test_transcription_segment():
